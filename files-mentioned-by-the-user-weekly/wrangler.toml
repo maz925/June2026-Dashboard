@@ -1,0 +1,7 @@
+name = "ufcgym-hapana-proxy"
+main = "hapana-worker.js"
+compatibility_date = "2026-05-26"
+
+[vars]
+HAPANA_MAX_PAGES = "20"
+HAPANA_BASE_URL = "https://api.hapana-app.com/v2"

@@ -1,0 +1,17 @@
+[core]
+	repositoryformatversion = 0
+	filemode = false
+	bare = false
+	logallrefupdates = true
+	worktree = C:/Users/user/Documents/Codex/2026-05-25/files-mentioned-by-the-user-weekly
+	symlinks = false
+	ignorecase = true
+[user]
+	name = Codex
+	email = codex@example.local
+[remote "origin"]
+	url = https://github.com/matthagan-rgb/UFCGYM-Dashboard.git
+	fetch = +refs/heads/*:refs/remotes/origin/*
+[branch "codex/staff-viewer"]
+	remote = origin
+	merge = refs/heads/codex/staff-viewer
