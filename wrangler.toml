@@ -1,0 +1,10 @@
+name = "ufcgym-hapana-proxy"
+main = "hapana-worker.js"
+compatibility_date = "2026-05-26"
+
+[vars]
+HAPANA_BASE_URL = "https://api.hapana.com/v2"
+HAPANA_PUBLIC_API_ONLY = "true"
+HAPANA_PAYMENTS_PATH = "/payments"
+HAPANA_MAX_PAGES = "20"
+HAPANA_AMOUNT_IS_CENTS = "false"

@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>UFC GYM DD / POS Staff Viewer</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">UFC GYM Team Dashboard</p>
+      <h1>DD / POS Tracker</h1>
+    </div>
+    <div class="source">
+      <span id="connectionStatus"></span>
+      <span id="sourceName"></span>
+      <span id="updatedAt"></span>
+    </div>
+  </header>
+
+  <main>
+    <section class="toolbar" aria-label="Dashboard filters">
+      <label class="filter">
+        <span>Club</span>
+        <select id="clubFilter"></select>
+      </label>
+      <div class="tabs" role="tablist" aria-label="Views">
+        <button class="tab active" type="button" data-view="overview">Overview</button>
+        <button class="tab" type="button" data-view="latest">Latest Week</button>
+        <button class="tab" type="button" data-view="targets">Targets</button>
+        <button class="tab" type="button" data-view="history">12 Weeks</button>
+      </div>
+    </section>
+
+    <section class="metrics" aria-label="Key totals">
+      <article>
+        <span>Total DD</span>
+        <strong id="totalDD"></strong>
+      </article>
+      <article>
+        <span>Total POS</span>
+        <strong id="totalPOS"></strong>
+      </article>
+      <article>
+        <span>Total Revenue</span>
+        <strong id="totalRevenue"></strong>
+      </article>
+      <article>
+        <span>Avg POS %</span>
+        <strong id="avgPOS"></strong>
+      </article>
+    </section>
+
+    <section class="cycle-panel" aria-label="Current reporting cycle">
+      <div>
+        <span class="mini-label">Latest available revenue week</span>
+        <strong id="cyclePeriod"></strong>
+      </div>
+      <div>
+        <span class="mini-label">Available for reporting</span>
+        <strong id="cycleWindow"></strong>
+      </div>
+    </section>
+
+    <section class="view active" id="overviewView">
+      <div class="section-heading">
+        <h2>Club Summary</h2>
+        <p>Quick scan of the last 4 reportable weeks.</p>
+      </div>
+      <div class="summary-grid" id="summaryGrid"></div>
+    </section>
+
+    <section class="view" id="latestView">
+      <div class="section-heading">
+        <h2>Latest Reportable Week</h2>
+        <p>DD and POS revenue is reported Friday to Thursday, then available the following Thursday.</p>
+      </div>
+      <div class="latest-grid" id="latestGrid"></div>
+    </section>
+
+    <section class="view" id="targetsView">
+      <div class="section-heading">
+        <h2>Targets</h2>
+        <p>Current baseline and dynamic targets by club.</p>
+      </div>
+      <div class="target-grid" id="targetGrid"></div>
+    </section>
+
+    <section class="view" id="historyView">
+      <div class="section-heading">
+        <h2>Rolling 12 Weeks</h2>
+        <p>Detailed DD and POS performance for the last 12 revenue weeks.</p>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Week</th>
+              <th>Reportable From</th>
+              <th>Club</th>
+              <th>DD Actual</th>
+              <th>DD Gap</th>
+              <th>POS Actual</th>
+              <th>POS %</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="historyBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="tracker-data.js"></script>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
