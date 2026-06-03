@@ -241,6 +241,13 @@ function extractLocationUrl(html, locationName) {
   const onclickUrl = onclick && onclick.match(/(?:location(?:\.href)?|window\.location)\s*=\s*['"]([^'"]+)['"]/i);
   if (onclickUrl) candidates.push(onclickUrl[1]);
 
+  for (const match of row.matchAll(/\bonclick\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/gi)) {
+    const value = decodeHtml(match[2] || match[3] || match[4] || "");
+    const urlMatch = value.match(/(?:location(?:\.href)?|window\.location)\s*=\s*['"]([^'"]+)['"]/i)
+      || value.match(/['"]([^'"]*(?:trainer_id|mytrainer_id|account_id|business_id|select|switch|loginaccount|setaccount)[^'"]*)['"]/i);
+    if (urlMatch) candidates.push(urlMatch[1]);
+  }
+
   for (const match of row.matchAll(/\b(?:data-href|href)\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/gi)) {
     candidates.push(match[2] || match[3] || match[4] || "");
   }
@@ -270,31 +277,11 @@ function locationRowHtml(html, locationName) {
     const rowEnd = html.indexOf("</tr>", absoluteIndex);
     if (rowStart >= 0 && rowEnd >= 0) return html.slice(rowStart, rowEnd + 5);
 
-    const parentStart = Math.max(
-      html.lastIndexOf("<a", absoluteIndex),
-      html.lastIndexOf("<div", absoluteIndex),
-      html.lastIndexOf("<li", absoluteIndex)
-    );
-    const parentEnd = firstPositive([
-      html.indexOf("</a>", absoluteIndex),
-      html.indexOf("</div>", absoluteIndex),
-      html.indexOf("</li>", absoluteIndex)
-    ]);
-
-    if (parentStart >= 0 && parentEnd >= 0) {
-      return html.slice(parentStart, parentEnd + 6);
-    }
-
-    return html.slice(Math.max(0, absoluteIndex - 3000), absoluteIndex + 3000);
+    return html.slice(Math.max(0, absoluteIndex - 4000), absoluteIndex + 4000);
   }
 
   const rowPattern = new RegExp(`<tr\\b[^>]*>[\\s\\S]*?${escapedName}[\\s\\S]*?<\\/tr>`, "i");
   return (html.match(rowPattern) || [])[0] || surroundingHtml(html, locationName);
-}
-
-function firstPositive(values) {
-  const positives = values.filter((value) => value >= 0);
-  return positives.length ? Math.min(...positives) : -1;
 }
 
 function isAccountSelectionUrl(value) {
