@@ -103,11 +103,13 @@ main {
 }
 
 select,
+input,
 button {
   font: inherit;
 }
 
-select {
+select,
+input[type="date"] {
   min-width: 210px;
   height: 42px;
   padding: 0 12px;
@@ -183,6 +185,37 @@ select {
   display: block;
   margin-top: 4px;
   font-size: 1.05rem;
+}
+
+.report-downloader {
+  margin-bottom: 24px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 10px 24px rgba(31, 38, 46, 0.06);
+}
+
+.download-form {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.2fr) minmax(170px, 0.8fr) minmax(170px, 0.8fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.download-button {
+  min-height: 42px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 6px;
+  color: #fff;
+  background: var(--charcoal);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.download-button:hover {
+  background: #111418;
 }
 
 .view {
@@ -343,10 +376,15 @@ tr:last-child td {
 
 @media (max-width: 940px) {
   .toolbar,
+  .download-form,
   .section-heading,
   .topbar {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .download-form {
+    grid-template-columns: 1fr 1fr;
   }
 
   .source {
@@ -388,7 +426,12 @@ tr:last-child td {
     grid-template-columns: 1fr 1fr;
   }
 
-  select {
+  select,
+  input[type="date"] {
     width: 100%;
+  }
+
+  .download-form {
+    grid-template-columns: 1fr;
   }
 }

@@ -1,4 +1,5 @@
 const CORE_BASE_URL = "https://core.hapana.com";
+const CORE_REPORT_VERSION = "core-report-http-location-id-map-v3-2026-06-03";
 const DEFAULT_LOGIN_URL = `${CORE_BASE_URL}/login`;
 const ACCOUNT_LIST_URL = `${CORE_BASE_URL}/index.php?route=common/home/listAccounts`;
 const REPORT_URL = `${CORE_BASE_URL}/index.php?route=dashboard/advreports`;
@@ -8,8 +9,24 @@ const KNOWN_LOCATIONS = [
   "UFC GYM Wetherill Park",
   "UFC Gym Sandbox",
   "UFC GYM 580 George",
-  "UFC GYM Woolooware"
+  "UFC GYM Woolooware",
+  "580 George",
+  "George St",
+  "George Street",
+  "580G"
 ];
+
+const LOCATION_CUSTOMER_IDS = {
+  "UFC GYM Bankstown": "74191",
+  "UFC GYM Wetherill Park": "91411",
+  "UFC Gym Sandbox": "67012",
+  "UFC GYM 580 George": "159336",
+  "UFC GYM Woolooware": "159340",
+  "580 George": "159336",
+  "George St": "159336",
+  "George Street": "159336",
+  "580G": "159336"
+};
 
 module.exports = async function handler(request, response) {
   response.setHeader("Access-Control-Allow-Origin", "*");
@@ -31,6 +48,7 @@ module.exports = async function handler(request, response) {
     const locationName = url.searchParams.get("location") || "UFC GYM Bankstown";
     const dateFrom = url.searchParams.get("date_from");
     const dateTo = url.searchParams.get("date_to");
+    const debug = url.searchParams.get("debug");
 
     if (!dateFrom || !dateTo) {
       throw new Error("date_from and date_to are required, using DD/MM/YYYY format");
@@ -40,16 +58,23 @@ module.exports = async function handler(request, response) {
       throw new Error(`Unknown location. Use one of: ${KNOWN_LOCATIONS.join(", ")}`);
     }
 
-    const email = process.env.HAPANA_CORE_EMAIL;
-    const password = process.env.HAPANA_CORE_PASSWORD;
-    if (!email || !password) {
-      throw new Error("HAPANA_CORE_EMAIL and HAPANA_CORE_PASSWORD are not configured");
+    const jar = await createCoreSession();
+
+    if (debug === "account") {
+      const accountPage = await requestWithCookies(jar, ACCOUNT_LIST_URL);
+      const accountHtml = await accountPage.text();
+      const row = locationRowHtml(accountHtml, locationName);
+      response.status(200).json({
+        version: CORE_REPORT_VERSION,
+        location: locationName,
+        extractedUrl: extractLocationUrl(accountHtml, locationName),
+        rowHtml: row.slice(0, 4000),
+        rowText: textSnippet(row)
+      });
+      return;
     }
 
-    const jar = new CookieJar();
-    await login(jar, email, password);
-    await selectLocation(jar, locationName);
-    const csv = await downloadReport(jar, { dateFrom, dateTo });
+    const csv = await downloadCoreReportCsv({ locationName, dateFrom, dateTo, jar });
 
     const fileSafeLocation = locationName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
     const fileSafeDateFrom = dateFrom.replace(/\//g, "-");
@@ -65,6 +90,31 @@ module.exports = async function handler(request, response) {
     response.status(500).json({ error: error.message });
   }
 };
+
+module.exports.downloadCoreReportCsv = downloadCoreReportCsv;
+module.exports.CORE_REPORT_LOCATIONS = LOCATION_CUSTOMER_IDS;
+
+async function createCoreSession() {
+  const email = process.env.HAPANA_CORE_EMAIL;
+  const password = process.env.HAPANA_CORE_PASSWORD;
+  if (!email || !password) {
+    throw new Error("HAPANA_CORE_EMAIL and HAPANA_CORE_PASSWORD are not configured");
+  }
+
+  const jar = new CookieJar();
+  await login(jar, email, password);
+  return jar;
+}
+
+async function downloadCoreReportCsv({ locationName, dateFrom, dateTo, jar }) {
+  if (!KNOWN_LOCATIONS.includes(locationName)) {
+    throw new Error(`Unknown location. Use one of: ${KNOWN_LOCATIONS.join(", ")}`);
+  }
+
+  const session = jar || await createCoreSession();
+  await selectLocation(session, locationName);
+  return downloadReport(session, { dateFrom, dateTo });
+}
 
 async function login(jar, email, password) {
   const loginPage = await requestWithCookies(jar, process.env.HAPANA_CORE_LOGIN_URL || DEFAULT_LOGIN_URL);
@@ -103,10 +153,10 @@ async function login(jar, email, password) {
 async function selectLocation(jar, locationName) {
   const accountPage = await requestWithCookies(jar, ACCOUNT_LIST_URL);
   const accountHtml = await accountPage.text();
-  const locationUrl = extractLocationUrl(accountHtml, locationName);
+  const locationUrl = locationSwitchUrl(locationName) || extractLocationUrl(accountHtml, locationName);
 
   if (!locationUrl) {
-    throw new Error(`Could not find account link for "${locationName}". URL: ${ACCOUNT_LIST_URL}. Page body: ${textSnippet(accountHtml)}`);
+    throw new Error(`Could not find account link for "${locationName}". URL: ${ACCOUNT_LIST_URL}. Row HTML: ${locationRowHtml(accountHtml, locationName).slice(0, 1000)}. Page body: ${textSnippet(accountHtml)}`);
   }
 
   const selected = await requestWithCookies(jar, absoluteUrl(locationUrl, ACCOUNT_LIST_URL), {
@@ -115,8 +165,15 @@ async function selectLocation(jar, locationName) {
   const selectedHtml = await selected.text();
 
   if ((selected.url || "").includes("listAccounts") || /Hapana Accounts/i.test(selectedHtml)) {
-    throw new Error(`Selecting "${locationName}" did not leave the account list. URL: ${selected.url}. Page body: ${textSnippet(selectedHtml)}`);
+    throw new Error(`Selecting "${locationName}" did not leave the account list. Target: ${locationUrl}. URL: ${selected.url}. Row HTML: ${locationRowHtml(accountHtml, locationName).slice(0, 1000)}. Page body: ${textSnippet(selectedHtml)}`);
   }
+}
+
+function locationSwitchUrl(locationName) {
+  const customerId = LOCATION_CUSTOMER_IDS[locationName];
+  return customerId
+    ? `${CORE_BASE_URL}/index.php?route=dashboard/trainer/updateTrainerAccount&customer_id=${customerId}`
+    : "";
 }
 
 async function downloadReport(jar, { dateFrom, dateTo }) {
@@ -218,21 +275,92 @@ function formAction(html) {
 }
 
 function extractLocationUrl(html, locationName) {
-  const escapedName = escapeRegExp(locationName);
-  const rowPattern = new RegExp(`<tr\\b[^>]*>[\\s\\S]*?${escapedName}[\\s\\S]*?<\\/tr>`, "i");
-  const row = (html.match(rowPattern) || [])[0] || surroundingHtml(html, locationName);
+  const row = locationRowHtml(html, locationName);
 
-  const href = attr(row, "href");
-  if (href) return decodeHtml(href);
+  const candidates = [];
 
   const onclick = attr(row, "onclick");
   const onclickUrl = onclick && onclick.match(/(?:location(?:\.href)?|window\.location)\s*=\s*['"]([^'"]+)['"]/i);
-  if (onclickUrl) return decodeHtml(onclickUrl[1]);
+  if (onclickUrl) candidates.push(onclickUrl[1]);
+
+  for (const match of row.matchAll(/\bonclick\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/gi)) {
+    const value = decodeHtml(match[2] || match[3] || match[4] || "");
+    const sessionMatch = value.match(/updateSessionID\((\d+)\)/i);
+    if (sessionMatch) {
+      candidates.push(`${CORE_BASE_URL}/index.php?route=dashboard/trainer/updateTrainerAccount&customer_id=${sessionMatch[1]}`);
+    }
+
+    const urlMatch = value.match(/(?:location(?:\.href)?|window\.location)\s*=\s*['"]([^'"]+)['"]/i)
+      || value.match(/['"]([^'"]*(?:trainer_id|mytrainer_id|account_id|business_id|select|switch|loginaccount|setaccount)[^'"]*)['"]/i);
+    if (urlMatch) candidates.push(urlMatch[1]);
+  }
+
+  for (const match of row.matchAll(/\b(?:data-href|href)\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/gi)) {
+    candidates.push(match[2] || match[3] || match[4] || "");
+  }
 
   const anyUrl = row.match(/(?:trainer_id|mytrainer_id|account_id|business_id)=[^"'&<\s]+/i);
-  if (anyUrl) return `${CORE_BASE_URL}/index.php?${decodeHtml(anyUrl[0])}`;
+  if (anyUrl) candidates.push(`${CORE_BASE_URL}/index.php?${decodeHtml(anyUrl[0])}`);
+
+  for (const candidate of candidates.map(decodeHtml)) {
+    if (isAccountSelectionUrl(candidate)) return candidate;
+  }
 
   return "";
+}
+
+function locationRowHtml(html, locationName) {
+  const escapedName = escapeRegExp(locationName);
+  const tableStart = Math.max(
+    html.toLowerCase().indexOf("business name"),
+    html.toLowerCase().indexOf("hapana accounts")
+  );
+  const searchHtml = tableStart >= 0 ? html.slice(tableStart) : html;
+  const match = new RegExp(escapedName, "i").exec(searchHtml);
+
+  if (match) {
+    const absoluteIndex = (tableStart >= 0 ? tableStart : 0) + match.index;
+    const rowStart = html.lastIndexOf("<tr", absoluteIndex);
+    const rowEnd = html.indexOf("</tr>", absoluteIndex);
+    if (rowStart >= 0 && rowEnd >= 0) return html.slice(rowStart, rowEnd + 5);
+
+    const listItemStart = html.lastIndexOf("<li", absoluteIndex);
+    const listItemEnd = html.indexOf("</li>", absoluteIndex);
+    if (listItemStart >= 0 && listItemEnd >= 0) {
+      return html.slice(listItemStart, listItemEnd + 5);
+    }
+
+    return html.slice(Math.max(0, absoluteIndex - 4000), absoluteIndex + 4000);
+  }
+
+  const rowPattern = new RegExp(`<tr\\b[^>]*>[\\s\\S]*?${escapedName}[\\s\\S]*?<\\/tr>`, "i");
+  return (html.match(rowPattern) || [])[0] || surroundingHtml(html, locationName);
+}
+
+function isAccountSelectionUrl(value) {
+  const url = String(value || "").trim();
+  if (!url || url === "#" || /^javascript:/i.test(url)) return false;
+
+  let parsed;
+  try {
+    parsed = new URL(url, ACCOUNT_LIST_URL);
+  } catch (error) {
+    return false;
+  }
+
+  if (parsed.href === ACCOUNT_LIST_URL || parsed.hash) return false;
+
+  const text = parsed.href.toLowerCase();
+  return text.includes("trainer_id=")
+    || text.includes("mytrainer_id=")
+    || text.includes("account_id=")
+    || text.includes("business_id=")
+    || text.includes("customer_id=")
+    || text.includes("select")
+    || text.includes("switch")
+    || text.includes("loginaccount")
+    || text.includes("setaccount")
+    || text.includes("updatetraineraccount");
 }
 
 function surroundingHtml(html, text) {

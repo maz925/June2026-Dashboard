@@ -63,6 +63,33 @@
       </div>
     </section>
 
+    <section class="report-downloader" aria-label="Hapana report downloader">
+      <div class="section-heading">
+        <h2>Hapana Report Download</h2>
+        <p>Net Revenue Detail CSV from Core Hapana.</p>
+      </div>
+      <form id="reportDownloadForm" class="download-form">
+        <label class="filter">
+          <span>Location</span>
+          <select id="reportLocation">
+            <option value="UFC GYM Bankstown">UFC GYM Bankstown</option>
+            <option value="UFC GYM Wetherill Park">UFC GYM Wetherill Park</option>
+            <option value="580G">UFC GYM 580 George</option>
+            <option value="UFC GYM Woolooware">UFC GYM Woolooware</option>
+          </select>
+        </label>
+        <label class="filter">
+          <span>From</span>
+          <input id="reportDateFrom" type="date" required>
+        </label>
+        <label class="filter">
+          <span>To</span>
+          <input id="reportDateTo" type="date" required>
+        </label>
+        <button class="download-button" type="submit">Download CSV</button>
+      </form>
+    </section>
+
     <section class="view active" id="overviewView">
       <div class="section-heading">
         <h2>Club Summary</h2>

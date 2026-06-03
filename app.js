@@ -27,6 +27,10 @@ const state = {
 };
 
 const clubFilter = document.querySelector("#clubFilter");
+const reportDownloadForm = document.querySelector("#reportDownloadForm");
+const reportLocation = document.querySelector("#reportLocation");
+const reportDateFrom = document.querySelector("#reportDateFrom");
+const reportDateTo = document.querySelector("#reportDateTo");
 
 function uniqueLatestRows() {
   const seen = new Set();
@@ -50,6 +54,18 @@ function addDays(date, days) {
 
 function formatDate(date) {
   return dateFormat.format(date);
+}
+
+function formatInputDate(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function toHapanaDate(value) {
+  const [year, month, day] = value.split("-");
+  return `${day}/${month}/${year}`;
 }
 
 function reportingCycle(weekEnding) {
@@ -202,9 +218,11 @@ async function loadLiveData() {
       return;
     }
 
+    const rolling = mergeRollingRows(data.rolling, liveData.rolling);
     data = {
       ...data,
       ...liveData,
+      rolling,
       targets: liveData.targets || data.targets,
       dynamicTargets: liveData.dynamicTargets || data.dynamicTargets
     };
@@ -214,6 +232,14 @@ async function loadLiveData() {
     state.connection = "fallback";
     console.warn("Using workbook data because Hapana live data could not load.", error);
   }
+}
+
+function mergeRollingRows(existingRows, liveRows) {
+  const rowsByKey = new Map(existingRows.map((row) => [`${row.weekEnding}|${row.club}`, row]));
+  for (const row of liveRows) {
+    rowsByKey.set(`${row.weekEnding}|${row.club}`, row);
+  }
+  return [...rowsByKey.values()].sort((a, b) => a.weekEnding.localeCompare(b.weekEnding) || a.club.localeCompare(b.club));
 }
 
 function renderMetrics() {
@@ -391,6 +417,11 @@ function initControls() {
     ...data.dynamicTargets.map((row) => row.club)
   ])].filter(Boolean);
   clubFilter.innerHTML = clubs.map((club) => `<option>${club}</option>`).join("");
+
+  const today = new Date();
+  const sevenDaysAgo = addDays(today, -6);
+  reportDateFrom.value = formatInputDate(sevenDaysAgo);
+  reportDateTo.value = formatInputDate(today);
 }
 
 function renderSource() {
@@ -413,6 +444,16 @@ clubFilter.addEventListener("change", (event) => {
 
 document.querySelectorAll(".tab").forEach((button) => {
   button.addEventListener("click", () => switchView(button.dataset.view));
+});
+
+reportDownloadForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const params = new URLSearchParams({
+    location: reportLocation.value,
+    date_from: toHapanaDate(reportDateFrom.value),
+    date_to: toHapanaDate(reportDateTo.value)
+  });
+  window.open(`/api/core-report?${params.toString()}`, "_blank", "noopener");
 });
 
 async function init() {

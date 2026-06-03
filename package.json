@@ -8,5 +8,7 @@
   "scripts": {
     "test:api": "node -e \"require('./api/hapana.js'); require('./api/core-report.js'); console.log('api modules loaded')\""
   },
-  "dependencies": {}
+  "dependencies": {
+    "@vercel/blob": "^2.4.0"
+  }
 }
