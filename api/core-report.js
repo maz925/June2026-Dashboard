@@ -270,15 +270,31 @@ function locationRowHtml(html, locationName) {
     const rowEnd = html.indexOf("</tr>", absoluteIndex);
     if (rowStart >= 0 && rowEnd >= 0) return html.slice(rowStart, rowEnd + 5);
 
-    const lineStart = html.lastIndexOf("\n", absoluteIndex);
-    const lineEnd = html.indexOf("\n", absoluteIndex);
-    if (lineStart >= 0 && lineEnd >= 0) return html.slice(lineStart, lineEnd);
+    const parentStart = Math.max(
+      html.lastIndexOf("<a", absoluteIndex),
+      html.lastIndexOf("<div", absoluteIndex),
+      html.lastIndexOf("<li", absoluteIndex)
+    );
+    const parentEnd = firstPositive([
+      html.indexOf("</a>", absoluteIndex),
+      html.indexOf("</div>", absoluteIndex),
+      html.indexOf("</li>", absoluteIndex)
+    ]);
 
-    return html.slice(Math.max(0, absoluteIndex - 1000), absoluteIndex + 1000);
+    if (parentStart >= 0 && parentEnd >= 0) {
+      return html.slice(parentStart, parentEnd + 6);
+    }
+
+    return html.slice(Math.max(0, absoluteIndex - 3000), absoluteIndex + 3000);
   }
 
   const rowPattern = new RegExp(`<tr\\b[^>]*>[\\s\\S]*?${escapedName}[\\s\\S]*?<\\/tr>`, "i");
   return (html.match(rowPattern) || [])[0] || surroundingHtml(html, locationName);
+}
+
+function firstPositive(values) {
+  const positives = values.filter((value) => value >= 0);
+  return positives.length ? Math.min(...positives) : -1;
 }
 
 function isAccountSelectionUrl(value) {
