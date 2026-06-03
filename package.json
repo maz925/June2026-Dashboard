@@ -8,8 +8,5 @@
   "scripts": {
     "test:api": "node -e \"require('./api/hapana.js'); require('./api/core-report.js'); console.log('api modules loaded')\""
   },
-  "dependencies": {
-    "@sparticuz/chromium": "^149.0.0",
-    "playwright-core": "^1.60.0"
-  }
+  "dependencies": {}
 }
