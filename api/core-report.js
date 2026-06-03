@@ -284,6 +284,12 @@ function locationRowHtml(html, locationName) {
     const rowEnd = html.indexOf("</tr>", absoluteIndex);
     if (rowStart >= 0 && rowEnd >= 0) return html.slice(rowStart, rowEnd + 5);
 
+    const listItemStart = html.lastIndexOf("<li", absoluteIndex);
+    const listItemEnd = html.indexOf("</li>", absoluteIndex);
+    if (listItemStart >= 0 && listItemEnd >= 0) {
+      return html.slice(listItemStart, listItemEnd + 5);
+    }
+
     return html.slice(Math.max(0, absoluteIndex - 4000), absoluteIndex + 4000);
   }
 
