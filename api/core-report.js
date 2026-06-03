@@ -1,4 +1,5 @@
 const CORE_BASE_URL = "https://core.hapana.com";
+const CORE_REPORT_VERSION = "core-report-http-wide-debug-2026-06-03";
 const DEFAULT_LOGIN_URL = `${CORE_BASE_URL}/login`;
 const ACCOUNT_LIST_URL = `${CORE_BASE_URL}/index.php?route=common/home/listAccounts`;
 const REPORT_URL = `${CORE_BASE_URL}/index.php?route=dashboard/advreports`;
@@ -55,6 +56,7 @@ module.exports = async function handler(request, response) {
       const accountHtml = await accountPage.text();
       const row = locationRowHtml(accountHtml, locationName);
       response.status(200).json({
+        version: CORE_REPORT_VERSION,
         location: locationName,
         extractedUrl: extractLocationUrl(accountHtml, locationName),
         rowHtml: row.slice(0, 4000),
