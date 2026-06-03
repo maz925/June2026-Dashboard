@@ -257,6 +257,26 @@ function extractLocationUrl(html, locationName) {
 
 function locationRowHtml(html, locationName) {
   const escapedName = escapeRegExp(locationName);
+  const tableStart = Math.max(
+    html.toLowerCase().indexOf("business name"),
+    html.toLowerCase().indexOf("hapana accounts")
+  );
+  const searchHtml = tableStart >= 0 ? html.slice(tableStart) : html;
+  const match = new RegExp(escapedName, "i").exec(searchHtml);
+
+  if (match) {
+    const absoluteIndex = (tableStart >= 0 ? tableStart : 0) + match.index;
+    const rowStart = html.lastIndexOf("<tr", absoluteIndex);
+    const rowEnd = html.indexOf("</tr>", absoluteIndex);
+    if (rowStart >= 0 && rowEnd >= 0) return html.slice(rowStart, rowEnd + 5);
+
+    const lineStart = html.lastIndexOf("\n", absoluteIndex);
+    const lineEnd = html.indexOf("\n", absoluteIndex);
+    if (lineStart >= 0 && lineEnd >= 0) return html.slice(lineStart, lineEnd);
+
+    return html.slice(Math.max(0, absoluteIndex - 1000), absoluteIndex + 1000);
+  }
+
   const rowPattern = new RegExp(`<tr\\b[^>]*>[\\s\\S]*?${escapedName}[\\s\\S]*?<\\/tr>`, "i");
   return (html.match(rowPattern) || [])[0] || surroundingHtml(html, locationName);
 }
