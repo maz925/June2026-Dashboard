@@ -1,5 +1,5 @@
 const CORE_BASE_URL = "https://core.hapana.com";
-const CORE_REPORT_VERSION = "core-report-http-wide-debug-2026-06-03";
+const CORE_REPORT_VERSION = "core-report-http-location-id-map-v2-2026-06-03";
 const DEFAULT_LOGIN_URL = `${CORE_BASE_URL}/login`;
 const ACCOUNT_LIST_URL = `${CORE_BASE_URL}/index.php?route=common/home/listAccounts`;
 const REPORT_URL = `${CORE_BASE_URL}/index.php?route=dashboard/advreports`;
@@ -11,6 +11,14 @@ const KNOWN_LOCATIONS = [
   "UFC GYM 580 George",
   "UFC GYM Woolooware"
 ];
+
+const LOCATION_CUSTOMER_IDS = {
+  "UFC GYM Bankstown": "74191",
+  "UFC GYM Wetherill Park": "91411",
+  "UFC Gym Sandbox": "67012",
+  "UFC GYM 580 George": "159336",
+  "UFC GYM Woolooware": "159340"
+};
 
 module.exports = async function handler(request, response) {
   response.setHeader("Access-Control-Allow-Origin", "*");
@@ -120,7 +128,7 @@ async function login(jar, email, password) {
 async function selectLocation(jar, locationName) {
   const accountPage = await requestWithCookies(jar, ACCOUNT_LIST_URL);
   const accountHtml = await accountPage.text();
-  const locationUrl = extractLocationUrl(accountHtml, locationName);
+  const locationUrl = locationSwitchUrl(locationName) || extractLocationUrl(accountHtml, locationName);
 
   if (!locationUrl) {
     throw new Error(`Could not find account link for "${locationName}". URL: ${ACCOUNT_LIST_URL}. Row HTML: ${locationRowHtml(accountHtml, locationName).slice(0, 1000)}. Page body: ${textSnippet(accountHtml)}`);
@@ -134,6 +142,13 @@ async function selectLocation(jar, locationName) {
   if ((selected.url || "").includes("listAccounts") || /Hapana Accounts/i.test(selectedHtml)) {
     throw new Error(`Selecting "${locationName}" did not leave the account list. Target: ${locationUrl}. URL: ${selected.url}. Row HTML: ${locationRowHtml(accountHtml, locationName).slice(0, 1000)}. Page body: ${textSnippet(selectedHtml)}`);
   }
+}
+
+function locationSwitchUrl(locationName) {
+  const customerId = LOCATION_CUSTOMER_IDS[locationName];
+  return customerId
+    ? `${CORE_BASE_URL}/index.php?route=dashboard/trainer/updateTrainerAccount&customer_id=${customerId}`
+    : "";
 }
 
 async function downloadReport(jar, { dateFrom, dateTo }) {
