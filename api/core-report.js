@@ -1,5 +1,5 @@
 const CORE_BASE_URL = "https://core.hapana.com";
-const CORE_REPORT_VERSION = "core-report-http-location-id-map-v2-2026-06-03";
+const CORE_REPORT_VERSION = "core-report-http-location-id-map-v3-2026-06-03";
 const DEFAULT_LOGIN_URL = `${CORE_BASE_URL}/login`;
 const ACCOUNT_LIST_URL = `${CORE_BASE_URL}/index.php?route=common/home/listAccounts`;
 const REPORT_URL = `${CORE_BASE_URL}/index.php?route=dashboard/advreports`;
@@ -9,7 +9,11 @@ const KNOWN_LOCATIONS = [
   "UFC GYM Wetherill Park",
   "UFC Gym Sandbox",
   "UFC GYM 580 George",
-  "UFC GYM Woolooware"
+  "UFC GYM Woolooware",
+  "580 George",
+  "George St",
+  "George Street",
+  "580G"
 ];
 
 const LOCATION_CUSTOMER_IDS = {
@@ -17,7 +21,11 @@ const LOCATION_CUSTOMER_IDS = {
   "UFC GYM Wetherill Park": "91411",
   "UFC Gym Sandbox": "67012",
   "UFC GYM 580 George": "159336",
-  "UFC GYM Woolooware": "159340"
+  "UFC GYM Woolooware": "159340",
+  "580 George": "159336",
+  "George St": "159336",
+  "George Street": "159336",
+  "580G": "159336"
 };
 
 module.exports = async function handler(request, response) {
