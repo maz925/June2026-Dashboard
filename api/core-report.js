@@ -31,6 +31,7 @@ module.exports = async function handler(request, response) {
     const locationName = url.searchParams.get("location") || "UFC GYM Bankstown";
     const dateFrom = url.searchParams.get("date_from");
     const dateTo = url.searchParams.get("date_to");
+    const debug = url.searchParams.get("debug");
 
     if (!dateFrom || !dateTo) {
       throw new Error("date_from and date_to are required, using DD/MM/YYYY format");
@@ -48,6 +49,20 @@ module.exports = async function handler(request, response) {
 
     const jar = new CookieJar();
     await login(jar, email, password);
+
+    if (debug === "account") {
+      const accountPage = await requestWithCookies(jar, ACCOUNT_LIST_URL);
+      const accountHtml = await accountPage.text();
+      const row = locationRowHtml(accountHtml, locationName);
+      response.status(200).json({
+        location: locationName,
+        extractedUrl: extractLocationUrl(accountHtml, locationName),
+        rowHtml: row.slice(0, 4000),
+        rowText: textSnippet(row)
+      });
+      return;
+    }
+
     await selectLocation(jar, locationName);
     const csv = await downloadReport(jar, { dateFrom, dateTo });
 
@@ -106,7 +121,7 @@ async function selectLocation(jar, locationName) {
   const locationUrl = extractLocationUrl(accountHtml, locationName);
 
   if (!locationUrl) {
-    throw new Error(`Could not find account link for "${locationName}". URL: ${ACCOUNT_LIST_URL}. Page body: ${textSnippet(accountHtml)}`);
+    throw new Error(`Could not find account link for "${locationName}". URL: ${ACCOUNT_LIST_URL}. Row HTML: ${locationRowHtml(accountHtml, locationName).slice(0, 1000)}. Page body: ${textSnippet(accountHtml)}`);
   }
 
   const selected = await requestWithCookies(jar, absoluteUrl(locationUrl, ACCOUNT_LIST_URL), {
@@ -115,7 +130,7 @@ async function selectLocation(jar, locationName) {
   const selectedHtml = await selected.text();
 
   if ((selected.url || "").includes("listAccounts") || /Hapana Accounts/i.test(selectedHtml)) {
-    throw new Error(`Selecting "${locationName}" did not leave the account list. URL: ${selected.url}. Page body: ${textSnippet(selectedHtml)}`);
+    throw new Error(`Selecting "${locationName}" did not leave the account list. Target: ${locationUrl}. URL: ${selected.url}. Row HTML: ${locationRowHtml(accountHtml, locationName).slice(0, 1000)}. Page body: ${textSnippet(selectedHtml)}`);
   }
 }
 
@@ -218,21 +233,56 @@ function formAction(html) {
 }
 
 function extractLocationUrl(html, locationName) {
-  const escapedName = escapeRegExp(locationName);
-  const rowPattern = new RegExp(`<tr\\b[^>]*>[\\s\\S]*?${escapedName}[\\s\\S]*?<\\/tr>`, "i");
-  const row = (html.match(rowPattern) || [])[0] || surroundingHtml(html, locationName);
+  const row = locationRowHtml(html, locationName);
 
-  const href = attr(row, "href");
-  if (href) return decodeHtml(href);
+  const candidates = [];
 
   const onclick = attr(row, "onclick");
   const onclickUrl = onclick && onclick.match(/(?:location(?:\.href)?|window\.location)\s*=\s*['"]([^'"]+)['"]/i);
-  if (onclickUrl) return decodeHtml(onclickUrl[1]);
+  if (onclickUrl) candidates.push(onclickUrl[1]);
+
+  for (const match of row.matchAll(/\b(?:data-href|href)\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/gi)) {
+    candidates.push(match[2] || match[3] || match[4] || "");
+  }
 
   const anyUrl = row.match(/(?:trainer_id|mytrainer_id|account_id|business_id)=[^"'&<\s]+/i);
-  if (anyUrl) return `${CORE_BASE_URL}/index.php?${decodeHtml(anyUrl[0])}`;
+  if (anyUrl) candidates.push(`${CORE_BASE_URL}/index.php?${decodeHtml(anyUrl[0])}`);
+
+  for (const candidate of candidates.map(decodeHtml)) {
+    if (isAccountSelectionUrl(candidate)) return candidate;
+  }
 
   return "";
+}
+
+function locationRowHtml(html, locationName) {
+  const escapedName = escapeRegExp(locationName);
+  const rowPattern = new RegExp(`<tr\\b[^>]*>[\\s\\S]*?${escapedName}[\\s\\S]*?<\\/tr>`, "i");
+  return (html.match(rowPattern) || [])[0] || surroundingHtml(html, locationName);
+}
+
+function isAccountSelectionUrl(value) {
+  const url = String(value || "").trim();
+  if (!url || url === "#" || /^javascript:/i.test(url)) return false;
+
+  let parsed;
+  try {
+    parsed = new URL(url, ACCOUNT_LIST_URL);
+  } catch (error) {
+    return false;
+  }
+
+  if (parsed.href === ACCOUNT_LIST_URL || parsed.hash) return false;
+
+  const text = parsed.href.toLowerCase();
+  return text.includes("trainer_id=")
+    || text.includes("mytrainer_id=")
+    || text.includes("account_id=")
+    || text.includes("business_id=")
+    || text.includes("select")
+    || text.includes("switch")
+    || text.includes("loginaccount")
+    || text.includes("setaccount");
 }
 
 function surroundingHtml(html, text) {
