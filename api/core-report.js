@@ -245,6 +245,11 @@ function extractLocationUrl(html, locationName) {
 
   for (const match of row.matchAll(/\bonclick\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/gi)) {
     const value = decodeHtml(match[2] || match[3] || match[4] || "");
+    const sessionMatch = value.match(/updateSessionID\((\d+)\)/i);
+    if (sessionMatch) {
+      candidates.push(`${CORE_BASE_URL}/index.php?route=dashboard/trainer/updateTrainerAccount&customer_id=${sessionMatch[1]}`);
+    }
+
     const urlMatch = value.match(/(?:location(?:\.href)?|window\.location)\s*=\s*['"]([^'"]+)['"]/i)
       || value.match(/['"]([^'"]*(?:trainer_id|mytrainer_id|account_id|business_id|select|switch|loginaccount|setaccount)[^'"]*)['"]/i);
     if (urlMatch) candidates.push(urlMatch[1]);
@@ -304,10 +309,12 @@ function isAccountSelectionUrl(value) {
     || text.includes("mytrainer_id=")
     || text.includes("account_id=")
     || text.includes("business_id=")
+    || text.includes("customer_id=")
     || text.includes("select")
     || text.includes("switch")
     || text.includes("loginaccount")
-    || text.includes("setaccount");
+    || text.includes("setaccount")
+    || text.includes("updatetraineraccount");
 }
 
 function surroundingHtml(html, text) {
