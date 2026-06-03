@@ -58,14 +58,7 @@ module.exports = async function handler(request, response) {
       throw new Error(`Unknown location. Use one of: ${KNOWN_LOCATIONS.join(", ")}`);
     }
 
-    const email = process.env.HAPANA_CORE_EMAIL;
-    const password = process.env.HAPANA_CORE_PASSWORD;
-    if (!email || !password) {
-      throw new Error("HAPANA_CORE_EMAIL and HAPANA_CORE_PASSWORD are not configured");
-    }
-
-    const jar = new CookieJar();
-    await login(jar, email, password);
+    const jar = await createCoreSession();
 
     if (debug === "account") {
       const accountPage = await requestWithCookies(jar, ACCOUNT_LIST_URL);
@@ -81,8 +74,7 @@ module.exports = async function handler(request, response) {
       return;
     }
 
-    await selectLocation(jar, locationName);
-    const csv = await downloadReport(jar, { dateFrom, dateTo });
+    const csv = await downloadCoreReportCsv({ locationName, dateFrom, dateTo, jar });
 
     const fileSafeLocation = locationName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
     const fileSafeDateFrom = dateFrom.replace(/\//g, "-");
@@ -98,6 +90,31 @@ module.exports = async function handler(request, response) {
     response.status(500).json({ error: error.message });
   }
 };
+
+module.exports.downloadCoreReportCsv = downloadCoreReportCsv;
+module.exports.CORE_REPORT_LOCATIONS = LOCATION_CUSTOMER_IDS;
+
+async function createCoreSession() {
+  const email = process.env.HAPANA_CORE_EMAIL;
+  const password = process.env.HAPANA_CORE_PASSWORD;
+  if (!email || !password) {
+    throw new Error("HAPANA_CORE_EMAIL and HAPANA_CORE_PASSWORD are not configured");
+  }
+
+  const jar = new CookieJar();
+  await login(jar, email, password);
+  return jar;
+}
+
+async function downloadCoreReportCsv({ locationName, dateFrom, dateTo, jar }) {
+  if (!KNOWN_LOCATIONS.includes(locationName)) {
+    throw new Error(`Unknown location. Use one of: ${KNOWN_LOCATIONS.join(", ")}`);
+  }
+
+  const session = jar || await createCoreSession();
+  await selectLocation(session, locationName);
+  return downloadReport(session, { dateFrom, dateTo });
+}
 
 async function login(jar, email, password) {
   const loginPage = await requestWithCookies(jar, process.env.HAPANA_CORE_LOGIN_URL || DEFAULT_LOGIN_URL);
