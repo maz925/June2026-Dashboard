@@ -1,8 +1,5 @@
 process.env.AWS_LAMBDA_JS_RUNTIME ||= "nodejs22.x";
 
-const chromium = require("@sparticuz/chromium");
-const { chromium: playwrightChromium } = require("playwright-core");
-
 const CORE_BASE_URL = "https://core.hapana.com";
 const DEFAULT_LOGIN_URL = `${CORE_BASE_URL}/login`;
 const ACCOUNT_LIST_URL = `${CORE_BASE_URL}/index.php?route=common/home/listAccounts`;
@@ -79,6 +76,11 @@ module.exports = async function handler(request, response) {
 };
 
 async function launchBrowser() {
+  const [{ default: chromium }, { chromium: playwrightChromium }] = await Promise.all([
+    import("@sparticuz/chromium"),
+    import("playwright-core")
+  ]);
+
   const executablePath = await chromium.executablePath();
   return playwrightChromium.launch({
     args: chromium.args,
