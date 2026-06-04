@@ -1,6 +1,7 @@
 const { get, put } = require("@vercel/blob");
 const { downloadCoreReportCsv } = require("./core-report.js");
 
+const WEEKLY_REVENUE_VERSION = "weekly-revenue-reportable-window-v2-2026-06-04";
 const STORAGE_PATH = "weekly-revenue.json";
 const TIME_ZONE = "Australia/Sydney";
 
@@ -59,6 +60,7 @@ module.exports = async function handler(request, response) {
     const existing = await loadExistingWeeklyRevenue();
     const rolling = mergeRollingRows(existing?.rolling || [], rows);
     const payload = {
+      version: WEEKLY_REVENUE_VERSION,
       source: "Hapana Core Net Revenue Detail",
       updated: new Date().toISOString(),
       weekEnding: window.weekEnding,
@@ -130,7 +132,8 @@ function reportWindow(params) {
   const today = sydneyCalendarDate();
   const day = today.getUTCDay();
   const daysSinceThursday = (day - 4 + 7) % 7;
-  const end = addDays(today, -daysSinceThursday);
+  const latestClosedThursday = addDays(today, -daysSinceThursday);
+  const end = addDays(latestClosedThursday, -7);
   const start = addDays(end, -6);
 
   return {
