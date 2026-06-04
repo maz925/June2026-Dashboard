@@ -451,7 +451,7 @@ function renderRevenueTrend() {
   const plotWidth = width - pad.left - pad.right;
   const plotHeight = height - pad.top - pad.bottom;
   const maxValue = Math.max(1, ...series.flatMap((item) => item.values));
-  const yStep = 10000;
+  const yStep = 5000;
   const yMax = Math.max(yStep, Math.ceil(maxValue / yStep) * yStep);
   const x = (index) => pad.left + (weeks.length === 1 ? plotWidth / 2 : (index / (weeks.length - 1)) * plotWidth);
   const y = (value) => pad.top + plotHeight - (value / yMax) * plotHeight;
