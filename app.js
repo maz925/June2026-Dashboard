@@ -2,7 +2,7 @@ window.HAPANA_PROXY_URL ||= window.location.hostname === "localhost" || window.l
   ? ""
   : "/api/hapana";
 
-const APP_VERSION = "dashboard-live-reportable-window-v2-2026-06-04";
+const APP_VERSION = "dashboard-revenue-trend-v3-2026-06-04";
 
 let data = window.TRACKER_DATA;
 
@@ -160,6 +160,10 @@ function formatPercent(value) {
   return `${number.format(value || 0)}%`;
 }
 
+function totalRevenue(row) {
+  return (row.ddActual || 0) + (row.posActual || 0);
+}
+
 function gapClass(value) {
   if (!hasValue(value)) return "muted-value";
   return value < 0 ? "negative" : "positive";
@@ -223,6 +227,16 @@ function gapDisplayClass(row) {
 
 function setText(selector, value) {
   document.querySelector(selector).textContent = value;
+}
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  }[char]));
 }
 
 async function loadLiveData() {
@@ -400,7 +414,97 @@ function renderTargets() {
   }).join("");
 }
 
+function renderRevenueTrend() {
+  const container = document.querySelector("#revenueTrend");
+  const weeks = availableWeekEndings().slice(0, 12).reverse();
+  const allRows = rowsForWeeks(weeks).filter((row) => hasRevenue(row) && isCompleteRevenueWeek(row));
+
+  if (!weeks.length || !allRows.length) {
+    container.innerHTML = `<p class="trend-empty">No revenue data available for the selected period.</p>`;
+    return;
+  }
+
+  const clubNames = [...new Set(allRows.map((row) => row.club))].sort((a, b) => a.localeCompare(b));
+  const visibleClubs = state.club === "All Clubs" ? clubNames : clubNames.filter((club) => club === state.club);
+  const chartClubs = ["All Clubs", ...visibleClubs];
+  const colors = {
+    "All Clubs": "#17202a",
+    "Bankstown": "#c8112e",
+    "Wetherill Park": "#1f7a4d",
+    "580G": "#2f6fd6",
+    "Woolooware": "#a15c00"
+  };
+
+  const series = chartClubs.map((club) => ({
+    club,
+    color: colors[club] || "#667085",
+    values: weeks.map((weekEnding) => {
+      const weekRows = allRows.filter((row) => row.weekEnding === weekEnding);
+      const rows = club === "All Clubs" ? weekRows : weekRows.filter((row) => row.club === club);
+      return rows.reduce((sum, row) => sum + totalRevenue(row), 0);
+    })
+  })).filter((item) => item.club === "All Clubs" || item.values.some((value) => value > 0));
+
+  const width = 980;
+  const height = 320;
+  const pad = { top: 22, right: 28, bottom: 54, left: 82 };
+  const plotWidth = width - pad.left - pad.right;
+  const plotHeight = height - pad.top - pad.bottom;
+  const maxValue = Math.max(1, ...series.flatMap((item) => item.values));
+  const yMax = niceMax(maxValue);
+  const x = (index) => pad.left + (weeks.length === 1 ? plotWidth / 2 : (index / (weeks.length - 1)) * plotWidth);
+  const y = (value) => pad.top + plotHeight - (value / yMax) * plotHeight;
+  const yTicks = [0, 0.25, 0.5, 0.75, 1].map((ratio) => yMax * ratio);
+
+  const grid = yTicks.map((tick) => `
+    <line class="trend-grid" x1="${pad.left}" y1="${y(tick)}" x2="${width - pad.right}" y2="${y(tick)}"></line>
+    <text class="trend-label" x="${pad.left - 12}" y="${y(tick) + 4}" text-anchor="end">${formatMoney(tick)}</text>
+  `).join("");
+
+  const xLabels = weeks.map((weekEnding, index) => `
+    <text class="trend-label" x="${x(index)}" y="${height - 20}" text-anchor="middle">${formatDate(parseDate(weekEnding)).replace("Thu, ", "")}</text>
+  `).join("");
+
+  const paths = series.map((item) => {
+    const points = item.values.map((value, index) => `${x(index)},${y(value)}`);
+    const path = points.map((point, index) => `${index === 0 ? "M" : "L"} ${point}`).join(" ");
+    const dots = item.values.map((value, index) => `
+      <circle class="trend-dot" cx="${x(index)}" cy="${y(value)}" r="${item.club === "All Clubs" ? 4.5 : 3.6}" fill="${item.color}">
+        <title>${escapeHtml(item.club)} ${formatDate(parseDate(weeks[index]))}: ${formatMoney(value)}</title>
+      </circle>
+    `).join("");
+    return `
+      <path class="trend-line" d="${path}" stroke="${item.color}"></path>
+      ${dots}
+    `;
+  }).join("");
+
+  const legend = series.map((item) => `
+    <span><i class="trend-swatch" style="background:${item.color}"></i>${escapeHtml(item.club)}</span>
+  `).join("");
+
+  container.innerHTML = `
+    <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="12 week total revenue line graph">
+      ${grid}
+      <line class="trend-axis" x1="${pad.left}" y1="${height - pad.bottom}" x2="${width - pad.right}" y2="${height - pad.bottom}"></line>
+      <line class="trend-axis" x1="${pad.left}" y1="${pad.top}" x2="${pad.left}" y2="${height - pad.bottom}"></line>
+      ${xLabels}
+      ${paths}
+    </svg>
+    <div class="trend-legend">${legend}</div>
+  `;
+}
+
+function niceMax(value) {
+  const exponent = Math.floor(Math.log10(value));
+  const magnitude = 10 ** exponent;
+  const rounded = Math.ceil(value / magnitude);
+  const nice = rounded <= 2 ? 2 : rounded <= 5 ? 5 : 10;
+  return nice * magnitude;
+}
+
 function renderHistory() {
+  renderRevenueTrend();
   const rows = visible(rowsForWeeks(availableWeekEndings().slice(0, 12))).sort((a, b) => b.weekEnding.localeCompare(a.weekEnding) || a.club.localeCompare(b.club));
   const body = document.querySelector("#historyBody");
   body.innerHTML = rows.map((row) => {
