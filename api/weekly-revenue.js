@@ -1,7 +1,7 @@
 const { get, put } = require("@vercel/blob");
 const { downloadCoreReportCsv } = require("./core-report.js");
 
-const WEEKLY_REVENUE_VERSION = "weekly-revenue-reportable-window-v2-2026-06-04";
+const WEEKLY_REVENUE_VERSION = "weekly-revenue-gross-ex-gst-v3-2026-06-04";
 const STORAGE_PATH = "weekly-revenue.json";
 const TIME_ZONE = "Australia/Sydney";
 
@@ -176,31 +176,17 @@ function summariseCsv(csv, { club, weekEnding, dateFrom, dateTo }) {
 
 function revenueBucket(record) {
   const revenueType = field(record, ["Revenue Type", "RevenueType"]);
-  const category = field(record, ["Transaction Category", "Category"]);
-  const description = field(record, ["Description"]);
-  const method = field(record, ["Payment Method", "PaymentMethod"]);
-  const origin = field(record, ["Transaction Origin", "Origin"]);
-  const haystack = `${revenueType} ${category} ${description} ${method} ${origin}`.toLowerCase();
-
-  if (/\bpos\b|retail|cafe|protein|shake|merch|product/.test(haystack)) return "pos";
-  if (/membership|direct debit|\bdd\b|recurring|loyalty/.test(haystack)) return "dd";
-  return "";
+  return /membership/i.test(revenueType) ? "dd" : "pos";
 }
 
 function amountValue(record) {
-  const value = field(record, [
-    "Net Revenue",
-    "Net",
-    "Gross",
-    "Gross Revenue",
-    "Amount",
-    "Total"
-  ]);
+  const value = field(record, ["Gross Revenue", "Gross", "Amount", "Total"]);
   if (!value) return NaN;
   const negative = /\(.+\)|^-/.test(String(value));
   const cleaned = String(value).replace(/[^0-9.]/g, "");
   const number = Number(cleaned);
-  return negative ? -number : number;
+  const signed = negative ? -number : number;
+  return signed / 1.1;
 }
 
 function field(record, names) {
