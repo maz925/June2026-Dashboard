@@ -1,4 +1,4 @@
-const MEMBER_APP_VERSION = "member-dashboard-single-club-refresh-v2-2026-06-05";
+const MEMBER_APP_VERSION = "member-dashboard-readable-refresh-errors-v3-2026-06-05";
 const REFRESH_CLUBS = ["Bankstown", "Wetherill Park", "580G", "Woolooware"];
 
 const number = new Intl.NumberFormat("en-AU", { maximumFractionDigits: 0 });
@@ -282,6 +282,7 @@ async function refreshMemberMetrics() {
   const button = refreshForm.querySelector("button");
   button.disabled = true;
   const originalText = button.textContent;
+  const failures = [];
 
   try {
     for (const club of REFRESH_CLUBS) {
@@ -296,7 +297,11 @@ async function refreshMemberMetrics() {
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok && response.status !== 207) {
-        throw new Error(body.error || `${club} update failed with ${response.status}`);
+        failures.push(`${club}: ${errorText(body.error || body || `HTTP ${response.status}`)}`);
+        continue;
+      }
+      if (Array.isArray(body.failures) && body.failures.length) {
+        failures.push(...body.failures.map((item) => `${item.club || club}: ${errorText(item.error)}`));
       }
     }
 
@@ -304,12 +309,25 @@ async function refreshMemberMetrics() {
     await loadMemberData();
     initControls();
     render();
-    memberRefreshStatus.textContent = "Member data updated.";
+    memberRefreshStatus.textContent = failures.length
+      ? `Finished with issues: ${failures.join(" | ")}`
+      : "Member data updated.";
   } catch (error) {
-    memberRefreshStatus.textContent = error.message;
+    memberRefreshStatus.textContent = errorText(error);
   } finally {
     button.disabled = false;
     button.textContent = originalText;
+  }
+}
+
+function errorText(error) {
+  if (!error) return "Unknown error";
+  if (typeof error === "string") return error;
+  if (error.message) return error.message;
+  try {
+    return JSON.stringify(error);
+  } catch (jsonError) {
+    return String(error);
   }
 }
 
