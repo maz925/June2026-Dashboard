@@ -1,7 +1,7 @@
 const { get, put } = require("@vercel/blob");
 const { downloadCoreReportCsv } = require("./core-report.js");
 
-const MEMBER_METRICS_VERSION = "member-metrics-single-club-merge-v2-2026-06-05";
+const MEMBER_METRICS_VERSION = "member-metrics-readable-errors-v3-2026-06-05";
 const STORAGE_PATH = "member-metrics.json";
 const TIME_ZONE = "Australia/Sydney";
 
@@ -73,7 +73,7 @@ module.exports = async function handler(request, response) {
           });
         }
       } catch (error) {
-        failures.push({ club, error: error.message });
+        failures.push({ club, error: errorText(error) });
       }
     }
 
@@ -122,7 +122,7 @@ module.exports = async function handler(request, response) {
       blobUrl: blob?.url || null
     });
   } catch (error) {
-    response.status(500).json({ error: error.message });
+    response.status(500).json({ error: errorText(error) });
   }
 };
 
@@ -411,4 +411,15 @@ function addDays(date, days) {
   const next = new Date(date);
   next.setUTCDate(next.getUTCDate() + days);
   return next;
+}
+
+function errorText(error) {
+  if (!error) return "Unknown error";
+  if (typeof error === "string") return error;
+  if (error.message) return error.message;
+  try {
+    return JSON.stringify(error);
+  } catch (jsonError) {
+    return String(error);
+  }
 }
