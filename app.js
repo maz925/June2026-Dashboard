@@ -68,6 +68,11 @@ function toHapanaDate(value) {
   return `${day}/${month}/${year}`;
 }
 
+function parseHapanaDate(value) {
+  const [day, month, year] = value.split("/").map(Number);
+  return new Date(year, month - 1, day);
+}
+
 function reportingCycle(weekEnding) {
   const end = parseDate(weekEnding);
   const start = addDays(end, -6);
@@ -83,9 +88,23 @@ function reportingCycle(weekEnding) {
   };
 }
 
+function rowPeriod(row) {
+  if (row?.dateFrom && row?.dateTo) {
+    return {
+      period: `${formatDate(parseHapanaDate(row.dateFrom))} to ${formatDate(parseHapanaDate(row.dateTo))}`,
+      availableFromText: "Live from Hapana",
+      availableWindow: "Live Hapana data is available now",
+      isLive: true
+    };
+  }
+  return reportingCycle(row?.weekEnding);
+}
+
 function activeReportableWeek() {
-  const weeks = availableWeekEndings().map((weekEnding) => ({ weekEnding, cycle: reportingCycle(weekEnding) }));
-  return weeks[0] || { weekEnding: data.rolling[0]?.weekEnding, cycle: reportingCycle(data.rolling[0]?.weekEnding) };
+  const weekEnding = availableWeekEndings()[0] || data.rolling[0]?.weekEnding;
+  const row = data.rolling.find((item) => item.weekEnding === weekEnding && hasRevenue(item)) ||
+    data.rolling.find((item) => item.weekEnding === weekEnding);
+  return { weekEnding, cycle: rowPeriod(row) };
 }
 
 function distinctWeekEndings() {
@@ -99,7 +118,8 @@ function reportableWeekEndings() {
 }
 
 function availableWeekEndings() {
-  return reportableWeekEndings().filter((weekEnding) =>
+  const weekEndings = state.connection === "live" ? distinctWeekEndings() : reportableWeekEndings();
+  return weekEndings.filter((weekEnding) =>
     data.rolling.some((row) => row.weekEnding === weekEnding && hasRevenue(row))
   );
 }
@@ -277,7 +297,9 @@ function metricRows() {
 function renderCycle() {
   const active = activeReportableWeek();
   setText("#cyclePeriod", active.cycle.period);
-  setText("#cycleWindow", `${active.cycle.availableWindow}, then the next cycle takes over`);
+  setText("#cycleWindow", active.cycle.isLive
+    ? active.cycle.availableWindow
+    : `${active.cycle.availableWindow}, then the next cycle takes over`);
 }
 
 function renderSummary() {
@@ -321,7 +343,7 @@ function renderLatest() {
   container.innerHTML = latest.map((row) => {
     const target = dynamicByClub[row.club];
     const progress = Math.max(0, Math.min(100, row.targetPercent ? (row.posPercent / row.targetPercent) * 100 : 0));
-    const cycle = reportingCycle(row.weekEnding);
+    const cycle = rowPeriod(row);
     return `
       <article class="latest-card">
         <div class="card-head">
@@ -374,7 +396,7 @@ function renderHistory() {
   const rows = visible(rowsForWeeks(availableWeekEndings().slice(0, 12))).sort((a, b) => b.weekEnding.localeCompare(a.weekEnding) || a.club.localeCompare(b.club));
   const body = document.querySelector("#historyBody");
   body.innerHTML = rows.map((row) => {
-    const cycle = reportingCycle(row.weekEnding);
+    const cycle = rowPeriod(row);
     return `
       <tr>
         <td>${cycle.period}</td>
