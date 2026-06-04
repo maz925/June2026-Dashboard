@@ -73,6 +73,28 @@ h2 {
   text-align: right;
 }
 
+.top-links {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.top-links a {
+  padding: 4px 8px;
+  border-radius: 999px;
+  color: rgba(255,255,255,0.82);
+  background: rgba(255,255,255,0.08);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.top-links a[aria-current="page"] {
+  color: #fff;
+  background: rgba(255,255,255,0.18);
+}
+
 #connectionStatus {
   justify-self: end;
   width: max-content;
@@ -475,6 +497,10 @@ tr:last-child td {
 
   #connectionStatus {
     justify-self: start;
+  }
+
+  .top-links {
+    justify-content: flex-start;
   }
 
   .tabs {

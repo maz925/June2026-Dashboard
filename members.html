@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>UFC GYM Member Dashboard</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">UFC GYM Team Dashboard</p>
+      <h1>Member Dashboard</h1>
+    </div>
+    <div class="source">
+      <nav class="top-links" aria-label="Dashboard links">
+        <a href="/">DD / POS</a>
+        <a aria-current="page" href="/members.html">Members</a>
+      </nav>
+      <span id="connectionStatus"></span>
+      <span id="sourceName"></span>
+      <span id="updatedAt"></span>
+    </div>
+  </header>
+
+  <main>
+    <section class="toolbar" aria-label="Dashboard filters">
+      <label class="filter">
+        <span>Club</span>
+        <select id="clubFilter"></select>
+      </label>
+      <div class="tabs" role="tablist" aria-label="Views">
+        <button class="tab active" type="button" data-view="overview">Overview</button>
+        <button class="tab" type="button" data-view="daily">Daily Active</button>
+        <button class="tab" type="button" data-view="detail">Club Detail</button>
+      </div>
+    </section>
+
+    <section class="metrics" aria-label="Member totals">
+      <article>
+        <span>Active Members</span>
+        <strong id="activeMembers"></strong>
+      </article>
+      <article>
+        <span>Cancellations</span>
+        <strong id="cancellations"></strong>
+      </article>
+      <article>
+        <span>Suspensions</span>
+        <strong id="suspensions"></strong>
+      </article>
+      <article>
+        <span>New Memberships</span>
+        <strong id="newMemberships"></strong>
+      </article>
+    </section>
+
+    <section class="cycle-panel" aria-label="Member reporting period">
+      <div>
+        <span class="mini-label">Membership Detail period</span>
+        <strong id="memberPeriod"></strong>
+      </div>
+      <div>
+        <span class="mini-label">Data source</span>
+        <strong id="memberSource"></strong>
+      </div>
+    </section>
+
+    <section class="report-downloader" aria-label="Membership report tools">
+      <div class="section-heading">
+        <h2>Membership Detail Refresh</h2>
+        <p>Pulls Membership Detail from Core Hapana for all clubs.</p>
+      </div>
+      <form id="memberRefreshForm" class="download-form">
+        <label class="filter">
+          <span>From</span>
+          <input id="memberDateFrom" type="date" required>
+        </label>
+        <label class="filter">
+          <span>To</span>
+          <input id="memberDateTo" type="date" required>
+        </label>
+        <button class="download-button" type="submit">Update Members</button>
+      </form>
+    </section>
+
+    <section class="view active" id="overviewView">
+      <div class="section-heading">
+        <h2>Club Summary</h2>
+        <p>Current member movement for the selected month.</p>
+      </div>
+      <div class="summary-grid" id="memberSummaryGrid"></div>
+    </section>
+
+    <section class="view" id="dailyView">
+      <div class="section-heading">
+        <h2>Total Active Daily</h2>
+        <p>Daily active member count for the selected month.</p>
+      </div>
+      <section class="trend-card" aria-label="Daily active members chart">
+        <div class="trend-head">
+          <h3>Active Member Trend</h3>
+          <p id="dailyChartNote"></p>
+        </div>
+        <div class="trend-chart" id="dailyActiveTrend"></div>
+      </section>
+    </section>
+
+    <section class="view" id="detailView">
+      <div class="section-heading">
+        <h2>Club Detail</h2>
+        <p>Active, cancelled, suspended and new memberships by club.</p>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Club</th>
+              <th>Active Members</th>
+              <th>Cancellations</th>
+              <th>Suspensions</th>
+              <th>New Memberships</th>
+              <th>Rows Read</th>
+            </tr>
+          </thead>
+          <tbody id="memberDetailBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="members.js"></script>
+</body>
+</html>

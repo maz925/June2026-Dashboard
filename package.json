@@ -6,7 +6,7 @@
     "node": "22.x"
   },
   "scripts": {
-    "test:api": "node -e \"require('./api/hapana.js'); require('./api/core-report.js'); console.log('api modules loaded')\""
+    "test:api": "node -e \"require('./api/hapana.js'); require('./api/core-report.js'); require('./api/weekly-revenue.js'); require('./api/member-metrics.js'); console.log('api modules loaded')\""
   },
   "dependencies": {
     "@vercel/blob": "^2.4.0"
