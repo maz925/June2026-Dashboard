@@ -41,7 +41,12 @@ module.exports = async function handler(request, response) {
           dateFrom: window.dateFrom,
           dateTo: window.dateTo
         });
-        rows.push(summariseCsv(csv, { club, weekEnding: window.weekEnding }));
+        rows.push(summariseCsv(csv, {
+          club,
+          weekEnding: window.weekEnding,
+          dateFrom: window.dateFrom,
+          dateTo: window.dateTo
+        }));
       } catch (error) {
         failures.push({ club, error: error.message });
       }
@@ -135,7 +140,7 @@ function reportWindow(params) {
   };
 }
 
-function summariseCsv(csv, { club, weekEnding }) {
+function summariseCsv(csv, { club, weekEnding, dateFrom, dateTo }) {
   const records = parseDelimited(csv);
   let ddActual = 0;
   let posActual = 0;
@@ -151,6 +156,8 @@ function summariseCsv(csv, { club, weekEnding }) {
 
   return {
     weekEnding,
+    dateFrom,
+    dateTo,
     club,
     ddActual: round2(ddActual),
     ddTarget: null,
