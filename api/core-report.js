@@ -1,5 +1,5 @@
 const CORE_BASE_URL = "https://core.hapana.com";
-const CORE_REPORT_VERSION = "core-report-http-location-id-map-v3-2026-06-03";
+const CORE_REPORT_VERSION = "core-report-generic-report-v1-2026-06-04";
 const DEFAULT_LOGIN_URL = `${CORE_BASE_URL}/login`;
 const ACCOUNT_LIST_URL = `${CORE_BASE_URL}/index.php?route=common/home/listAccounts`;
 const REPORT_URL = `${CORE_BASE_URL}/index.php?route=dashboard/advreports`;
@@ -26,6 +26,19 @@ const LOCATION_CUSTOMER_IDS = {
   "George St": "159336",
   "George Street": "159336",
   "580G": "159336"
+};
+
+const REPORTS = {
+  netRevenueDetail: {
+    filter: "getNetRevenueDetail2",
+    reportType: "client",
+    filePrefix: "net-revenue-detail"
+  },
+  membershipDetail: {
+    filter: "getMembershipDetails",
+    reportType: "client",
+    filePrefix: "membership-detail"
+  }
 };
 
 module.exports = async function handler(request, response) {
@@ -74,7 +87,13 @@ module.exports = async function handler(request, response) {
       return;
     }
 
-    const csv = await downloadCoreReportCsv({ locationName, dateFrom, dateTo, jar });
+    const reportKey = url.searchParams.get("report") || "netRevenueDetail";
+    const reportConfig = REPORTS[reportKey];
+    if (!reportConfig) {
+      throw new Error(`Unknown report. Use one of: ${Object.keys(REPORTS).join(", ")}`);
+    }
+
+    const csv = await downloadCoreReportCsv({ locationName, dateFrom, dateTo, reportKey, jar });
 
     const fileSafeLocation = locationName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
     const fileSafeDateFrom = dateFrom.replace(/\//g, "-");
@@ -83,7 +102,7 @@ module.exports = async function handler(request, response) {
     response.setHeader("Content-Type", "text/csv; charset=utf-8");
     response.setHeader(
       "Content-Disposition",
-      `attachment; filename="net-revenue-detail-${fileSafeLocation}-${fileSafeDateFrom}-to-${fileSafeDateTo}.csv"`
+      `attachment; filename="${reportConfig.filePrefix}-${fileSafeLocation}-${fileSafeDateFrom}-to-${fileSafeDateTo}.csv"`
     );
     response.status(200).send(csv);
   } catch (error) {
@@ -92,7 +111,9 @@ module.exports = async function handler(request, response) {
 };
 
 module.exports.downloadCoreReportCsv = downloadCoreReportCsv;
+module.exports.downloadCoreAdvancedReportCsv = downloadCoreAdvancedReportCsv;
 module.exports.CORE_REPORT_LOCATIONS = LOCATION_CUSTOMER_IDS;
+module.exports.CORE_REPORTS = REPORTS;
 
 async function createCoreSession() {
   const email = process.env.HAPANA_CORE_EMAIL;
@@ -106,14 +127,25 @@ async function createCoreSession() {
   return jar;
 }
 
-async function downloadCoreReportCsv({ locationName, dateFrom, dateTo, jar }) {
+async function downloadCoreReportCsv({ locationName, dateFrom, dateTo, reportKey = "netRevenueDetail", jar }) {
   if (!KNOWN_LOCATIONS.includes(locationName)) {
     throw new Error(`Unknown location. Use one of: ${KNOWN_LOCATIONS.join(", ")}`);
   }
 
   const session = jar || await createCoreSession();
   await selectLocation(session, locationName);
-  return downloadReport(session, { dateFrom, dateTo });
+  return downloadReport(session, { dateFrom, dateTo, reportKey });
+}
+
+async function downloadCoreAdvancedReportCsv({ locationName, dateFrom, dateTo, filter, reportType = "client", jar }) {
+  if (!filter) throw new Error("Report filter is required");
+  if (!KNOWN_LOCATIONS.includes(locationName)) {
+    throw new Error(`Unknown location. Use one of: ${KNOWN_LOCATIONS.join(", ")}`);
+  }
+
+  const session = jar || await createCoreSession();
+  await selectLocation(session, locationName);
+  return downloadReport(session, { dateFrom, dateTo, filter, reportType });
 }
 
 async function login(jar, email, password) {
@@ -176,10 +208,15 @@ function locationSwitchUrl(locationName) {
     : "";
 }
 
-async function downloadReport(jar, { dateFrom, dateTo }) {
+async function downloadReport(jar, { dateFrom, dateTo, reportKey = "netRevenueDetail", filter, reportType }) {
+  const reportConfig = reportKey ? REPORTS[reportKey] : null;
+  const resolvedFilter = filter || reportConfig?.filter;
+  const resolvedReportType = reportType || reportConfig?.reportType || "client";
+  if (!resolvedFilter) throw new Error(`Unknown report key: ${reportKey}`);
+
   const reportUrl = new URL(REPORT_URL);
-  reportUrl.searchParams.set("report_type", "client");
-  reportUrl.searchParams.set("filter", "getNetRevenueDetail2");
+  reportUrl.searchParams.set("report_type", resolvedReportType);
+  reportUrl.searchParams.set("filter", resolvedFilter);
   reportUrl.searchParams.set("removeCacheFlag", "1");
   reportUrl.searchParams.set("date_from", dateFrom);
   reportUrl.searchParams.set("date_to", dateTo);
