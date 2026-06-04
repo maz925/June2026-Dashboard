@@ -2,6 +2,8 @@ window.HAPANA_PROXY_URL ||= window.location.hostname === "localhost" || window.l
   ? ""
   : "/api/hapana";
 
+const APP_VERSION = "dashboard-live-reportable-window-v2-2026-06-04";
+
 let data = window.TRACKER_DATA;
 
 const money = new Intl.NumberFormat("en-AU", {
@@ -462,7 +464,7 @@ function renderSource() {
 
   setText("#connectionStatus", status);
   setText("#sourceName", data.source);
-  setText("#updatedAt", `Prepared ${data.updated}`);
+  setText("#updatedAt", `Prepared ${data.updated} | ${APP_VERSION}`);
 }
 
 clubFilter.addEventListener("change", (event) => {
