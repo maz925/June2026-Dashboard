@@ -1,7 +1,7 @@
 const { get, put } = require("@vercel/blob");
 const { downloadCoreReportCsv } = require("./core-report.js");
 
-const MEMBER_METRICS_VERSION = "member-metrics-membership-detail-v1-2026-06-04";
+const MEMBER_METRICS_VERSION = "member-metrics-single-club-merge-v2-2026-06-05";
 const STORAGE_PATH = "member-metrics.json";
 const TIME_ZONE = "Australia/Sydney";
 
@@ -39,11 +39,22 @@ module.exports = async function handler(request, response) {
 
     const window = monthWindow(url.searchParams);
     const debug = url.searchParams.get("debug");
+    const targetLocations = locationsForRequest(url.searchParams);
+
+    if (!targetLocations.length) {
+      const stored = await loadExistingMemberMetrics();
+      response.status(200).json(stored || {
+        ...emptyPayload(),
+        note: "No club was requested. Use /api/member-metrics?club=Bankstown, Wetherill%20Park, 580G, or Woolooware."
+      });
+      return;
+    }
+
     const rows = [];
     const failures = [];
     const samples = [];
 
-    for (const { club, location } of LOCATIONS) {
+    for (const { club, location } of targetLocations) {
       try {
         const csv = await downloadCoreReportCsv({
           locationName: location,
@@ -81,6 +92,12 @@ module.exports = async function handler(request, response) {
       throw new Error(`No member rows were calculated. Failures: ${JSON.stringify(failures)}`);
     }
 
+    const existing = await loadExistingMemberMetrics();
+    const existingClubs = existing?.dateFrom === window.dateFrom && existing?.dateTo === window.dateTo
+      ? existing.clubs || []
+      : [];
+    const clubs = mergeClubRows(existingClubs, rows);
+
     const payload = {
       version: MEMBER_METRICS_VERSION,
       source: "Hapana Core Membership Detail",
@@ -88,8 +105,8 @@ module.exports = async function handler(request, response) {
       dateFrom: window.dateFrom,
       dateTo: window.dateTo,
       monthKey: window.monthKey,
-      clubs: rows,
-      totals: totalRows(rows),
+      clubs,
+      totals: totalRows(clubs),
       failures
     };
 
@@ -137,6 +154,37 @@ function emptyPayload() {
     failures: [],
     note: "No stored member metrics have been written yet. Run /api/member-metrics first."
   };
+}
+
+function locationsForRequest(params) {
+  if (params.get("all") === "1") return LOCATIONS;
+  const requested = params.get("club") || params.get("location");
+  if (!requested) return [];
+
+  const normalised = normaliseClub(requested);
+  return LOCATIONS.filter(({ club, location }) =>
+    normaliseClub(club) === normalised || normaliseClub(location) === normalised
+  );
+}
+
+function mergeClubRows(existingRows, newRows) {
+  const rowsByClub = new Map();
+  for (const row of existingRows) {
+    if (row?.club) rowsByClub.set(row.club, row);
+  }
+  for (const row of newRows) {
+    if (row?.club) rowsByClub.set(row.club, row);
+  }
+  return LOCATIONS
+    .map(({ club }) => rowsByClub.get(club))
+    .filter(Boolean);
+}
+
+function normaliseClub(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/^ufc\s+gym\s+/, "")
+    .replace(/[^a-z0-9]+/g, "");
 }
 
 function monthWindow(params) {
