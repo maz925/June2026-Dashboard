@@ -451,10 +451,11 @@ function renderRevenueTrend() {
   const plotWidth = width - pad.left - pad.right;
   const plotHeight = height - pad.top - pad.bottom;
   const maxValue = Math.max(1, ...series.flatMap((item) => item.values));
-  const yMax = niceMax(maxValue);
+  const yStep = 10000;
+  const yMax = Math.max(yStep, Math.ceil(maxValue / yStep) * yStep);
   const x = (index) => pad.left + (weeks.length === 1 ? plotWidth / 2 : (index / (weeks.length - 1)) * plotWidth);
   const y = (value) => pad.top + plotHeight - (value / yMax) * plotHeight;
-  const yTicks = [0, 0.25, 0.5, 0.75, 1].map((ratio) => yMax * ratio);
+  const yTicks = Array.from({ length: Math.floor(yMax / yStep) + 1 }, (_, index) => index * yStep);
 
   const grid = yTicks.map((tick) => `
     <line class="trend-grid" x1="${pad.left}" y1="${y(tick)}" x2="${width - pad.right}" y2="${y(tick)}"></line>
@@ -493,14 +494,6 @@ function renderRevenueTrend() {
     </svg>
     <div class="trend-legend">${legend}</div>
   `;
-}
-
-function niceMax(value) {
-  const exponent = Math.floor(Math.log10(value));
-  const magnitude = 10 ** exponent;
-  const rounded = Math.ceil(value / magnitude);
-  const nice = rounded <= 2 ? 2 : rounded <= 5 ? 5 : 10;
-  return nice * magnitude;
 }
 
 function renderHistory() {
