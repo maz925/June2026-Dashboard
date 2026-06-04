@@ -1,4 +1,7 @@
 const DEFAULT_HAPANA_BASE_URL = "https://api.hapana.com/v2";
+const { get } = require("@vercel/blob");
+
+const HAPANA_PROXY_VERSION = "hapana-stored-weekly-first-v2-2026-06-04";
 
 const CLUB_SITE_IDS = {
   "Wetherill Park": "UWNnS2tUM3VDeUN0YTlaWlBDM3lqdz09",
@@ -19,9 +22,9 @@ module.exports = async function handler(request, response) {
 
   try {
     const url = new URL(request.url, `https://${request.headers.host || "localhost"}`);
-    const sites = await listSites();
 
     if (url.searchParams.get("mode") === "sites") {
+      const sites = await listSites();
       response.status(200).json({
         source: "Hapana Public API",
         updated: new Date().toISOString(),
@@ -30,13 +33,27 @@ module.exports = async function handler(request, response) {
       return;
     }
 
+    const storedRevenue = await loadStoredWeeklyRevenue();
+    if (storedRevenue?.rolling?.length) {
+      response.status(200).json({
+        version: HAPANA_PROXY_VERSION,
+        source: storedRevenue.source || "Hapana Core Net Revenue Detail",
+        updated: storedRevenue.updated,
+        rolling: storedRevenue.rolling,
+        weekEnding: storedRevenue.weekEnding,
+        dateFrom: storedRevenue.dateFrom,
+        dateTo: storedRevenue.dateTo,
+        failures: storedRevenue.failures || []
+      });
+      return;
+    }
+
     response.status(200).json({
-      source: "Hapana Public API",
+      version: HAPANA_PROXY_VERSION,
+      source: "Hapana Core Net Revenue Detail",
       updated: new Date().toISOString(),
-      sites,
       rolling: [],
-      clubSiteIds: CLUB_SITE_IDS,
-      note: "Hapana Public API is connected, but the documented endpoints do not expose a site-level DD/POS payment feed."
+      note: "No stored weekly revenue has been written yet. Run /api/weekly-revenue first."
     });
   } catch (error) {
     response.status(500).json({ error: error.message });
@@ -52,6 +69,12 @@ async function listSites() {
     state: site.siteState || null,
     country: site.siteCountry || null
   }));
+}
+
+async function loadStoredWeeklyRevenue() {
+  const result = await get("weekly-revenue.json", { access: "private" }).catch(() => null);
+  if (!result || result.statusCode !== 200) return null;
+  return new Response(result.stream).json();
 }
 
 async function hapanaGet(path) {
