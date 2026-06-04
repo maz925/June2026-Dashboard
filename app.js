@@ -118,10 +118,16 @@ function reportableWeekEndings() {
 }
 
 function availableWeekEndings() {
-  const weekEndings = state.connection === "live" ? distinctWeekEndings() : reportableWeekEndings();
-  return weekEndings.filter((weekEnding) =>
-    data.rolling.some((row) => row.weekEnding === weekEnding && hasRevenue(row))
+  return reportableWeekEndings().filter((weekEnding) =>
+    data.rolling.some((row) => row.weekEnding === weekEnding && hasRevenue(row) && isCompleteRevenueWeek(row))
   );
+}
+
+function isCompleteRevenueWeek(row) {
+  if (!row?.dateFrom || !row?.dateTo) return true;
+  const start = parseHapanaDate(row.dateFrom);
+  const end = parseHapanaDate(row.dateTo);
+  return start.getDay() === 5 && end.getDay() === 4 && addDays(start, 6).toDateString() === end.toDateString();
 }
 
 function reportableRows() {
