@@ -10,7 +10,7 @@
       "schedule": "0 21 * * 4"
     },
     {
-      "path": "/api/member-metrics",
+      "path": "/api/member-cron",
       "schedule": "0 20 * * *"
     }
   ]

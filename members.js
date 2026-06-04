@@ -1,4 +1,5 @@
-const MEMBER_APP_VERSION = "member-dashboard-v1-2026-06-04";
+const MEMBER_APP_VERSION = "member-dashboard-single-club-refresh-v2-2026-06-05";
+const REFRESH_CLUBS = ["Bankstown", "Wetherill Park", "580G", "Woolooware"];
 
 const number = new Intl.NumberFormat("en-AU", { maximumFractionDigits: 0 });
 const dateFormat = new Intl.DateTimeFormat("en-AU", {
@@ -24,6 +25,7 @@ const clubFilter = document.querySelector("#clubFilter");
 const refreshForm = document.querySelector("#memberRefreshForm");
 const memberDateFrom = document.querySelector("#memberDateFrom");
 const memberDateTo = document.querySelector("#memberDateTo");
+const memberRefreshStatus = document.querySelector("#memberRefreshStatus");
 
 function parseDate(value) {
   return new Date(`${value}T00:00:00`);
@@ -273,12 +275,43 @@ document.querySelectorAll(".tab").forEach((button) => {
 
 refreshForm.addEventListener("submit", (event) => {
   event.preventDefault();
-  const params = new URLSearchParams({
-    date_from: toHapanaDate(memberDateFrom.value),
-    date_to: toHapanaDate(memberDateTo.value)
-  });
-  window.open(`/api/member-metrics?${params.toString()}`, "_blank", "noopener");
+  refreshMemberMetrics();
 });
+
+async function refreshMemberMetrics() {
+  const button = refreshForm.querySelector("button");
+  button.disabled = true;
+  const originalText = button.textContent;
+
+  try {
+    for (const club of REFRESH_CLUBS) {
+      memberRefreshStatus.textContent = `Updating ${club}...`;
+      const params = new URLSearchParams({
+        club,
+        date_from: toHapanaDate(memberDateFrom.value),
+        date_to: toHapanaDate(memberDateTo.value)
+      });
+      const response = await fetch(`/api/member-metrics?${params.toString()}`, {
+        headers: { "Accept": "application/json" }
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok && response.status !== 207) {
+        throw new Error(body.error || `${club} update failed with ${response.status}`);
+      }
+    }
+
+    memberRefreshStatus.textContent = "Member data updated. Refreshing dashboard...";
+    await loadMemberData();
+    initControls();
+    render();
+    memberRefreshStatus.textContent = "Member data updated.";
+  } catch (error) {
+    memberRefreshStatus.textContent = error.message;
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
+  }
+}
 
 async function init() {
   await loadMemberData();
