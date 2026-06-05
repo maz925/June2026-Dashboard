@@ -1,4 +1,4 @@
-const MEMBER_APP_VERSION = "member-dashboard-readable-refresh-errors-v3-2026-06-05";
+const MEMBER_APP_VERSION = "member-dashboard-fallback-labels-v4-2026-06-05";
 const REFRESH_CLUBS = ["Bankstown", "Wetherill Park", "580G", "Woolooware"];
 
 const number = new Intl.NumberFormat("en-AU", { maximumFractionDigits: 0 });
@@ -167,7 +167,7 @@ function renderSummary() {
     <article class="club-card">
       <div class="card-head">
         <span class="club-name">${escapeHtml(row.club)}</span>
-        <span class="status ${row.failures ? "red" : "green"}">members</span>
+        <span class="status ${row.warning ? "amber" : "green"}">${row.fallback ? "active only" : "members"}</span>
       </div>
       <div class="mini-grid">
         <span><span class="mini-label">Active</span><strong class="mini-value">${number.format(row.activeMembers || 0)}</strong></span>
@@ -175,6 +175,7 @@ function renderSummary() {
         <span><span class="mini-label">Cancelled</span><strong class="mini-value negative">${number.format(row.cancellations || 0)}</strong></span>
         <span><span class="mini-label">Suspended</span><strong class="mini-value">${number.format(row.suspensions || 0)}</strong></span>
       </div>
+      ${row.warning ? `<p class="note">${escapeHtml(row.warning)}</p>` : ""}
     </article>
   `).join("");
 }
@@ -240,7 +241,7 @@ function renderDetail() {
       <td>${number.format(row.cancellations || 0)}</td>
       <td>${number.format(row.suspensions || 0)}</td>
       <td>${number.format(row.newMemberships || 0)}</td>
-      <td>${number.format(row.rowCount || 0)}</td>
+      <td>${row.fallback ? "Fallback" : number.format(row.rowCount || 0)}</td>
     </tr>
   `).join("");
 }
