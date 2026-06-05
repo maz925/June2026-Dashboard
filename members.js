@@ -1,4 +1,4 @@
-const MEMBER_APP_VERSION = "member-dashboard-fallback-labels-v4-2026-06-05";
+const MEMBER_APP_VERSION = "member-dashboard-active-first-v5-2026-06-05";
 const REFRESH_CLUBS = ["Bankstown", "Wetherill Park", "580G", "Woolooware"];
 
 const number = new Intl.NumberFormat("en-AU", { maximumFractionDigits: 0 });
@@ -151,7 +151,9 @@ function renderPeriod() {
   }
   setText("#memberSource", state.data.failures?.length
     ? `${state.data.failures.length} club issue(s) need checking`
-    : "Membership Detail CSV from Core Hapana");
+    : state.data.clubs.some((row) => row.fallback)
+      ? "Account list active counts from Core Hapana"
+      : "Membership Detail CSV from Core Hapana");
 }
 
 function renderSummary() {
@@ -167,7 +169,7 @@ function renderSummary() {
     <article class="club-card">
       <div class="card-head">
         <span class="club-name">${escapeHtml(row.club)}</span>
-        <span class="status ${row.warning ? "amber" : "green"}">${row.fallback ? "active only" : "members"}</span>
+        <span class="status ${row.warning || row.fallback ? "amber" : "green"}">${row.fallback ? "active only" : "members"}</span>
       </div>
       <div class="mini-grid">
         <span><span class="mini-label">Active</span><strong class="mini-value">${number.format(row.activeMembers || 0)}</strong></span>
