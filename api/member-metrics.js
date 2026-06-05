@@ -1,7 +1,12 @@
 const { get, put } = require("@vercel/blob");
-const { downloadCoreReportCsv } = require("./core-report.js");
+const {
+  ACCOUNT_LIST_URL,
+  createCoreSession,
+  downloadCoreReportCsv,
+  requestWithCookies
+} = require("./core-report.js");
 
-const MEMBER_METRICS_VERSION = "member-metrics-readable-errors-v3-2026-06-05";
+const MEMBER_METRICS_VERSION = "member-metrics-account-list-fallback-v4-2026-06-05";
 const STORAGE_PATH = "member-metrics.json";
 const TIME_ZONE = "Australia/Sydney";
 
@@ -53,6 +58,10 @@ module.exports = async function handler(request, response) {
     const rows = [];
     const failures = [];
     const samples = [];
+    const existing = await loadExistingMemberMetrics();
+    const existingClubs = existing?.dateFrom === window.dateFrom && existing?.dateTo === window.dateTo
+      ? existing.clubs || []
+      : [];
 
     for (const { club, location } of targetLocations) {
       try {
@@ -73,6 +82,14 @@ module.exports = async function handler(request, response) {
           });
         }
       } catch (error) {
+        const fallback = await activeFallbackRow(club, window).catch(() => null);
+        if (fallback) {
+          rows.push({
+            ...(existingClubs.find((row) => row.club === club) || {}),
+            ...fallback,
+            warning: `Membership Detail failed: ${errorText(error)}`
+          });
+        }
         failures.push({ club, error: errorText(error) });
       }
     }
@@ -88,14 +105,10 @@ module.exports = async function handler(request, response) {
       return;
     }
 
-    if (!rows.length) {
+    if (!rows.length && !existingClubs.length) {
       throw new Error(`No member rows were calculated. Failures: ${JSON.stringify(failures)}`);
     }
 
-    const existing = await loadExistingMemberMetrics();
-    const existingClubs = existing?.dateFrom === window.dateFrom && existing?.dateTo === window.dateTo
-      ? existing.clubs || []
-      : [];
     const clubs = mergeClubRows(existingClubs, rows);
 
     const payload = {
@@ -178,6 +191,61 @@ function mergeClubRows(existingRows, newRows) {
   return LOCATIONS
     .map(({ club }) => rowsByClub.get(club))
     .filter(Boolean);
+}
+
+async function activeFallbackRow(club, window) {
+  const jar = await createCoreSession();
+  const accountPage = await requestWithCookies(jar, ACCOUNT_LIST_URL);
+  const html = await accountPage.text();
+  const activeMembers = activeCountFromAccountList(html, club);
+  if (!Number.isFinite(activeMembers)) return null;
+
+  const days = dateRange(parseHapanaDate(window.dateFrom), parseHapanaDate(window.dateTo));
+  return {
+    club,
+    activeMembers,
+    cancellations: 0,
+    suspensions: 0,
+    newMemberships: 0,
+    dailyActive: days.map((date) => ({
+      date: date.toISOString().slice(0, 10),
+      active: activeMembers
+    })),
+    rowCount: 0,
+    fallback: "account-list-active-count"
+  };
+}
+
+function activeCountFromAccountList(html, club) {
+  const names = locationNamesForClub(club);
+  for (const name of names) {
+    const index = String(html).toLowerCase().indexOf(name.toLowerCase());
+    if (index < 0) continue;
+
+    const rowStart = html.lastIndexOf("<li", index);
+    const rowEnd = html.indexOf("</li>", index);
+    const row = rowStart >= 0 && rowEnd >= 0
+      ? html.slice(rowStart, rowEnd + 5)
+      : html.slice(Math.max(0, index - 600), index + 1200);
+    const text = textSnippet(row);
+
+    const clientsMatch = text.match(/Clients\s*:?\s*([0-9,]+)/i);
+    if (clientsMatch) return Number(clientsMatch[1].replace(/,/g, ""));
+
+    const numbers = [...text.matchAll(/\b([0-9]{2,6})\b/g)].map((match) => Number(match[1]));
+    if (numbers.length) return Math.max(...numbers);
+  }
+
+  return NaN;
+}
+
+function locationNamesForClub(club) {
+  return {
+    "Bankstown": ["UFC GYM Bankstown"],
+    "Wetherill Park": ["UFC GYM Wetherill Park"],
+    "580G": ["UFC GYM 580 George", "580 George", "George St"],
+    "Woolooware": ["UFC GYM Woolooware"]
+  }[club] || [club];
 }
 
 function normaliseClub(value) {
@@ -411,6 +479,20 @@ function addDays(date, days) {
   const next = new Date(date);
   next.setUTCDate(next.getUTCDate() + days);
   return next;
+}
+
+function textSnippet(html) {
+  return String(html || "")
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function errorText(error) {

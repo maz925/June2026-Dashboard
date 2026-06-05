@@ -112,6 +112,9 @@ module.exports = async function handler(request, response) {
 
 module.exports.downloadCoreReportCsv = downloadCoreReportCsv;
 module.exports.downloadCoreAdvancedReportCsv = downloadCoreAdvancedReportCsv;
+module.exports.createCoreSession = createCoreSession;
+module.exports.requestWithCookies = requestWithCookies;
+module.exports.ACCOUNT_LIST_URL = ACCOUNT_LIST_URL;
 module.exports.CORE_REPORT_LOCATIONS = LOCATION_CUSTOMER_IDS;
 module.exports.CORE_REPORTS = REPORTS;
 
