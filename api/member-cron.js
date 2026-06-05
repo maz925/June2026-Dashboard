@@ -1,4 +1,4 @@
-const MEMBER_CRON_VERSION = "member-cron-fanout-v1-2026-06-05";
+const MEMBER_CRON_VERSION = "member-cron-active-first-v2-2026-06-05";
 
 const CLUBS = ["Bankstown", "Wetherill Park", "580G", "Woolooware"];
 
