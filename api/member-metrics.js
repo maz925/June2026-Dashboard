@@ -6,7 +6,7 @@ const {
   requestWithCookies
 } = require("./core-report.js");
 
-const MEMBER_METRICS_VERSION = "member-metrics-active-first-v5-2026-06-05";
+const MEMBER_METRICS_VERSION = "member-metrics-account-list-table-scope-v6-2026-06-05";
 const STORAGE_PATH = "member-metrics.json";
 const TIME_ZONE = "Australia/Sydney";
 
@@ -229,15 +229,23 @@ async function activeFallbackRow(club, window) {
 
 function activeCountFromAccountList(html, club) {
   const names = locationNamesForClub(club);
+  const lowerHtml = String(html || "").toLowerCase();
+  const tableStart = Math.max(
+    lowerHtml.indexOf("hapana accounts"),
+    lowerHtml.indexOf("business name"),
+    lowerHtml.indexOf("businesslist")
+  );
+  const scopedHtml = tableStart >= 0 ? String(html).slice(tableStart) : String(html);
+
   for (const name of names) {
-    const index = String(html).toLowerCase().indexOf(name.toLowerCase());
+    const index = scopedHtml.toLowerCase().indexOf(name.toLowerCase());
     if (index < 0) continue;
 
-    const rowStart = html.lastIndexOf("<li", index);
-    const rowEnd = html.indexOf("</li>", index);
+    const rowStart = scopedHtml.lastIndexOf("<li", index);
+    const rowEnd = scopedHtml.indexOf("</li>", index);
     const row = rowStart >= 0 && rowEnd >= 0
-      ? html.slice(rowStart, rowEnd + 5)
-      : html.slice(Math.max(0, index - 600), index + 1200);
+      ? scopedHtml.slice(rowStart, rowEnd + 5)
+      : scopedHtml.slice(Math.max(0, index - 600), index + 1200);
     const text = textSnippet(row);
 
     const clientsMatch = text.match(/Clients\s*:?\s*([0-9,]+)/i);

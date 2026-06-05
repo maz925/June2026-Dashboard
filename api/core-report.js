@@ -1,5 +1,5 @@
 const CORE_BASE_URL = "https://core.hapana.com";
-const CORE_REPORT_VERSION = "core-report-generic-report-v1-2026-06-04";
+const CORE_REPORT_VERSION = "core-report-report-timeout-v2-2026-06-05";
 const DEFAULT_LOGIN_URL = `${CORE_BASE_URL}/login`;
 const ACCOUNT_LIST_URL = `${CORE_BASE_URL}/index.php?route=common/home/listAccounts`;
 const REPORT_URL = `${CORE_BASE_URL}/index.php?route=dashboard/advreports`;
@@ -226,7 +226,8 @@ async function downloadReport(jar, { dateFrom, dateTo, reportKey = "netRevenueDe
   reportUrl.searchParams.set("downloadfile", "xls");
 
   const report = await requestWithCookies(jar, reportUrl.toString(), {
-    headers: { "Referer": reportUrl.toString().replace("&downloadfile=xls", "") }
+    headers: { "Referer": reportUrl.toString().replace("&downloadfile=xls", "") },
+    timeoutMs: 45000
   });
   const body = await report.text();
 
@@ -255,11 +256,26 @@ async function requestWithCookies(jar, url, options = {}) {
   const cookie = jar.header();
   if (cookie) headers.Cookie = cookie;
 
-  const response = await fetch(url, {
-    ...options,
-    headers,
-    redirect: "manual"
-  });
+  const timeoutMs = options.timeoutMs || 0;
+  const controller = timeoutMs ? new AbortController() : null;
+  const timer = timeoutMs ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  let response;
+
+  try {
+    response = await fetch(url, {
+      ...options,
+      headers,
+      redirect: "manual",
+      signal: controller?.signal
+    });
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      throw new Error(`Core Hapana request timed out after ${Math.round(timeoutMs / 1000)}s: ${url}`);
+    }
+    throw error;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 
   jar.add(response.headers);
 
