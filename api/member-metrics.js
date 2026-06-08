@@ -6,7 +6,7 @@ const {
   requestWithCookies
 } = require("./core-report.js");
 
-const MEMBER_METRICS_VERSION = "member-metrics-account-list-table-scope-v6-2026-06-05";
+const MEMBER_METRICS_VERSION = "member-metrics-deep-refresh-v7-2026-06-08";
 const STORAGE_PATH = "member-metrics.json";
 const TIME_ZONE = "Australia/Sydney";
 
@@ -241,11 +241,10 @@ function activeCountFromAccountList(html, club) {
     const index = scopedHtml.toLowerCase().indexOf(name.toLowerCase());
     if (index < 0) continue;
 
-    const rowStart = scopedHtml.lastIndexOf("<li", index);
-    const rowEnd = scopedHtml.indexOf("</li>", index);
-    const row = rowStart >= 0 && rowEnd >= 0
-      ? scopedHtml.slice(rowStart, rowEnd + 5)
-      : scopedHtml.slice(Math.max(0, index - 600), index + 1200);
+    const row = containingElement(scopedHtml, index, "li")
+      || containingElement(scopedHtml, index, "tr")
+      || containingElement(scopedHtml, index, "div")
+      || scopedHtml.slice(Math.max(0, index - 600), index + 1200);
     const text = textSnippet(row);
 
     const clientsMatch = text.match(/Clients\s*:?\s*([0-9,]+)/i);
@@ -260,11 +259,27 @@ function activeCountFromAccountList(html, club) {
 
 function locationNamesForClub(club) {
   return {
-    "Bankstown": ["UFC GYM Bankstown"],
-    "Wetherill Park": ["UFC GYM Wetherill Park"],
-    "580G": ["UFC GYM 580 George", "580 George", "George St"],
-    "Woolooware": ["UFC GYM Woolooware"]
+    "Bankstown": ["UFC GYM Bankstown", "Bankstown"],
+    "Wetherill Park": ["UFC GYM Wetherill Park", "Wetherill Park", "Wetherill"],
+    "580G": ["UFC GYM 580 George", "580 George", "George St", "George Street", "580G"],
+    "Woolooware": ["UFC GYM Woolooware", "Woolooware"]
   }[club] || [club];
+}
+
+function containingElement(html, index, tagName) {
+  const open = new RegExp(`<${tagName}\\b`, "ig");
+  let rowStart = -1;
+  let match;
+
+  while ((match = open.exec(html)) && match.index <= index) {
+    rowStart = match.index;
+  }
+
+  if (rowStart < 0) return "";
+
+  const closeToken = `</${tagName}>`;
+  const rowEnd = html.toLowerCase().indexOf(closeToken, index);
+  return rowEnd >= 0 ? html.slice(rowStart, rowEnd + closeToken.length) : "";
 }
 
 function normaliseClub(value) {

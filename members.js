@@ -1,4 +1,4 @@
-const MEMBER_APP_VERSION = "member-dashboard-active-first-v5-2026-06-05";
+const MEMBER_APP_VERSION = "member-dashboard-deep-refresh-v6-2026-06-08";
 const REFRESH_CLUBS = ["Bankstown", "Wetherill Park", "580G", "Woolooware"];
 
 const number = new Intl.NumberFormat("en-AU", { maximumFractionDigits: 0 });
@@ -293,7 +293,8 @@ async function refreshMemberMetrics() {
       const params = new URLSearchParams({
         club,
         date_from: toHapanaDate(memberDateFrom.value),
-        date_to: toHapanaDate(memberDateTo.value)
+        date_to: toHapanaDate(memberDateTo.value),
+        deep: "1"
       });
       const response = await fetch(`/api/member-metrics?${params.toString()}`, {
         headers: { "Accept": "application/json" }
