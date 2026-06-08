@@ -83,6 +83,23 @@
         <button class="download-button" type="submit">Update Members</button>
       </form>
       <p class="form-status" id="memberRefreshStatus" role="status"></p>
+      <form id="memberImportForm" class="download-form member-import-form">
+        <label class="filter">
+          <span>Import Club</span>
+          <select id="memberImportClub">
+            <option>Bankstown</option>
+            <option>Wetherill Park</option>
+            <option>580G</option>
+            <option>Woolooware</option>
+          </select>
+        </label>
+        <label class="filter file-filter">
+          <span>Membership Detail CSV</span>
+          <input id="memberImportFile" type="file" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values" required>
+        </label>
+        <button class="download-button" type="submit">Import CSV</button>
+      </form>
+      <p class="form-status" id="memberImportStatus" role="status"></p>
     </section>
 
     <section class="view active" id="overviewView">
