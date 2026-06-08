@@ -6,14 +6,14 @@ const {
   requestWithCookies
 } = require("./core-report.js");
 
-const MEMBER_METRICS_VERSION = "member-metrics-deep-refresh-v7-2026-06-08";
+const MEMBER_METRICS_VERSION = "member-metrics-prefetch-fallback-v8-2026-06-08";
 const STORAGE_PATH = "member-metrics.json";
 const TIME_ZONE = "Australia/Sydney";
 
 const LOCATIONS = [
   { club: "Bankstown", location: "UFC GYM Bankstown" },
   { club: "Wetherill Park", location: "UFC GYM Wetherill Park" },
-  { club: "580G", location: "580G" },
+  { club: "580G", location: "UFC GYM 580 George" },
   { club: "Woolooware", location: "UFC GYM Woolooware" }
 ];
 
@@ -65,9 +65,11 @@ module.exports = async function handler(request, response) {
       : [];
 
     for (const { club, location } of targetLocations) {
+      let fallback = null;
+
       try {
         if (!deep) {
-          const fallback = await activeFallbackRow(club, window);
+          fallback = await activeFallbackRow(club, window);
           if (!fallback) throw new Error("Could not read active count from Hapana account list");
           rows.push({
             ...(existingClubs.find((row) => row.club === club) || {}),
@@ -76,6 +78,7 @@ module.exports = async function handler(request, response) {
           continue;
         }
 
+        fallback = await activeFallbackRow(club, window).catch(() => null);
         const csv = await downloadCoreReportCsv({
           locationName: location,
           dateFrom: window.dateFrom,
@@ -93,7 +96,6 @@ module.exports = async function handler(request, response) {
           });
         }
       } catch (error) {
-        const fallback = deep ? await activeFallbackRow(club, window).catch(() => null) : null;
         if (fallback) {
           rows.push({
             ...(existingClubs.find((row) => row.club === club) || {}),
