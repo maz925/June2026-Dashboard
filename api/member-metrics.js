@@ -6,7 +6,7 @@ const {
   requestWithCookies
 } = require("./core-report.js");
 
-const MEMBER_METRICS_VERSION = "member-metrics-prefetch-fallback-v8-2026-06-08";
+const MEMBER_METRICS_VERSION = "member-metrics-package-status-active-v9-2026-06-08";
 const STORAGE_PATH = "member-metrics.json";
 const TIME_ZONE = "Australia/Sydney";
 
@@ -65,20 +65,11 @@ module.exports = async function handler(request, response) {
       : [];
 
     for (const { club, location } of targetLocations) {
-      let fallback = null;
-
       try {
         if (!deep) {
-          fallback = await activeFallbackRow(club, window);
-          if (!fallback) throw new Error("Could not read active count from Hapana account list");
-          rows.push({
-            ...(existingClubs.find((row) => row.club === club) || {}),
-            ...fallback
-          });
-          continue;
+          throw new Error("Current active members require Membership Detail. Retry with deep=1.");
         }
 
-        fallback = await activeFallbackRow(club, window).catch(() => null);
         const csv = await downloadCoreReportCsv({
           locationName: location,
           dateFrom: window.dateFrom,
@@ -96,13 +87,6 @@ module.exports = async function handler(request, response) {
           });
         }
       } catch (error) {
-        if (fallback) {
-          rows.push({
-            ...(existingClubs.find((row) => row.club === club) || {}),
-            ...fallback,
-            warning: `Membership Detail failed: ${errorText(error)}`
-          });
-        }
         failures.push({ club, error: errorText(error) });
       }
     }
@@ -326,7 +310,7 @@ function summariseRecords(records, { club, dateFrom, dateTo }) {
   }));
 
   for (const record of records) {
-    const status = field(record, ["Status", "Membership Status", "Client Status", "Member Status", "Package Status"]);
+    const status = field(record, ["Package Status", "Membership Status", "Status", "Client Status", "Member Status"]);
     const startDate = bestDate(record, ["Start Date", "Membership Start Date", "Contract Start Date", "Sale Date", "Sold Date", "Purchase Date", "Created Date", "Join Date"]);
     const cancelDate = bestDate(record, ["Cancel Date", "Cancelled Date", "Cancellation Date", "Terminated Date", "End Date"]);
     const suspendDate = bestDate(record, ["Suspension Date", "Suspended Date", "Freeze Date", "Frozen Date", "Hold Date"]);
@@ -372,9 +356,8 @@ function totalRows(rows) {
 
 function isActiveStatus(status, cancelDate, end) {
   const text = String(status || "").toLowerCase();
-  if (/cancel|terminat|inactive|expired|depleted|deleted/.test(text)) return false;
   if (cancelDate && cancelDate <= end) return false;
-  return !text || /active|current|ok|open/.test(text) || !/suspend|freeze|hold/.test(text);
+  return text === "active";
 }
 
 function isActiveOnDate({ status, startDate, cancelDate }, date) {

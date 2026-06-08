@@ -1,4 +1,4 @@
-const MEMBER_APP_VERSION = "member-dashboard-prefetch-fallback-v7-2026-06-08";
+const MEMBER_APP_VERSION = "member-dashboard-package-status-active-v8-2026-06-08";
 const REFRESH_CLUBS = ["Bankstown", "Wetherill Park", "580G", "Woolooware"];
 
 const number = new Intl.NumberFormat("en-AU", { maximumFractionDigits: 0 });
