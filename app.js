@@ -2,7 +2,7 @@ window.HAPANA_PROXY_URL ||= window.location.hostname === "localhost" || window.l
   ? ""
   : "/api/hapana";
 
-const APP_VERSION = "dashboard-custom-revenue-single-club-v6-2026-06-09";
+const APP_VERSION = "dashboard-hapana-revenue-only-v7-2026-06-10";
 
 let data = window.TRACKER_DATA;
 
@@ -275,14 +275,18 @@ async function loadLiveData() {
 
     if (liveData.rolling.length === 0) {
       state.connection = Array.isArray(liveData.sites) && liveData.sites.length ? "liveMetadata" : "fallback";
+      data = {
+        ...data,
+        ...liveData,
+        rolling: []
+      };
       return;
     }
 
-    const rolling = mergeRollingRows(data.rolling, liveData.rolling);
     data = {
       ...data,
       ...liveData,
-      rolling,
+      rolling: liveData.rolling,
       targets: liveData.targets || data.targets,
       dynamicTargets: liveData.dynamicTargets || data.dynamicTargets
     };
