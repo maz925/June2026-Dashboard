@@ -7,7 +7,7 @@ const {
 } = require("./core-report.js");
 
 const DEFAULT_HAPANA_BASE_URL = "https://api.hapana.com/v2";
-const MEMBER_METRICS_VERSION = "member-metrics-suspended-config-v21-2026-06-09";
+const MEMBER_METRICS_VERSION = "member-metrics-suspended-status-pkg-v22-2026-06-09";
 const STORAGE_PATH = "member-metrics.json";
 const TIME_ZONE = "Australia/Sydney";
 
@@ -277,7 +277,10 @@ function suspendedMembershipDetailParams() {
     }).filter(([key]) => key));
   }
 
-  return null;
+  return {
+    "parent_selection[]": "status_pkg",
+    "value[]": "4"
+  };
 }
 
 function isSuspendedRecord(record) {

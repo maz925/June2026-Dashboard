@@ -1,4 +1,4 @@
-const MEMBER_APP_VERSION = "member-dashboard-suspended-status-v20-2026-06-09";
+const MEMBER_APP_VERSION = "member-dashboard-suspended-status-pkg-v22-2026-06-09";
 const REFRESH_CLUBS = ["Bankstown", "Wetherill Park", "580G", "Woolooware"];
 
 const number = new Intl.NumberFormat("en-AU", { maximumFractionDigits: 0 });
