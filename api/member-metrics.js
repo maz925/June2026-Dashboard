@@ -7,7 +7,7 @@ const {
 } = require("./core-report.js");
 
 const DEFAULT_HAPANA_BASE_URL = "https://api.hapana.com/v2";
-const MEMBER_METRICS_VERSION = "member-metrics-exclude-quest-new-v16-2026-06-09";
+const MEMBER_METRICS_VERSION = "member-metrics-cancel-date-forecast-v17-2026-06-09";
 const STORAGE_PATH = "member-metrics.json";
 const TIME_ZONE = "Australia/Sydney";
 
@@ -454,6 +454,7 @@ function summariseRecords(records, { club, dateFrom, dateTo }) {
   const start = parseHapanaDate(dateFrom);
   const end = parseHapanaDate(dateTo);
   const windows = movementWindows(end);
+  const cancellationWindows = cancellationForecastWindows(end);
   const days = dateRange(start, end);
   let active = 0;
   let fitnessPassport = 0;
@@ -461,6 +462,7 @@ function summariseRecords(records, { club, dateFrom, dateTo }) {
   let suspensions = 0;
   let newMemberships = 0;
   const movement = emptyMovement(windows);
+  const cancellationForecast = emptyCancellationForecast(cancellationWindows);
 
   const dailyActive = days.map((date) => ({
     date: date.toISOString().slice(0, 10),
@@ -484,6 +486,7 @@ function summariseRecords(records, { club, dateFrom, dateTo }) {
     if (inRange(cancelDate, start, end) || /cancel|terminat/i.test(status)) cancellations += 1;
     if (inRange(suspendDate, start, end) || /suspend|freeze|frozen|hold/i.test(status)) suspensions += 1;
     if (isNewSale({ status, packageName, packageCategory, soldDate, startDate, cancelDate, windowStart: start, windowEnd: end })) newMemberships += 1;
+    addCancellationForecast(cancellationForecast, cancellationWindows, cancelDate);
     addMovement(movement, windows, {
       status,
       packageName,
@@ -509,6 +512,7 @@ function summariseRecords(records, { club, dateFrom, dateTo }) {
     suspensions,
     newMemberships,
     movement,
+    cancellationForecast,
     dailyActive,
     rowCount: records.length
   };
@@ -530,6 +534,7 @@ function totalRows(rows) {
     suspensions: rows.reduce((sum, row) => sum + (row.suspensions || 0), 0),
     newMemberships: rows.reduce((sum, row) => sum + (row.newMemberships || 0), 0),
     movement: totalMovement(rows),
+    cancellationForecast: totalCancellationForecast(rows),
     dailyActive: [...byDate.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, active]) => ({ date, active }))
   };
 }
@@ -613,6 +618,63 @@ function totalMovement(rows) {
     }
   }
   return movement;
+}
+
+function cancellationForecastWindows(end) {
+  const currentStart = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), 1));
+  const currentEnd = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth() + 1, 0));
+  const nextStart = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth() + 1, 1));
+  const nextEnd = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth() + 2, 0));
+  return {
+    currentMonth: {
+      label: currentStart.toISOString().slice(0, 7),
+      dateFrom: hapanaDate(currentStart),
+      dateTo: hapanaDate(currentEnd),
+      start: currentStart,
+      end: currentEnd
+    },
+    nextMonth: {
+      label: nextStart.toISOString().slice(0, 7),
+      dateFrom: hapanaDate(nextStart),
+      dateTo: hapanaDate(nextEnd),
+      start: nextStart,
+      end: nextEnd
+    }
+  };
+}
+
+function emptyCancellationForecast(windows) {
+  return Object.fromEntries(Object.entries(windows).map(([key, window]) => [
+    key,
+    {
+      label: window.label,
+      dateFrom: window.dateFrom,
+      dateTo: window.dateTo,
+      cancellations: 0
+    }
+  ]));
+}
+
+function addCancellationForecast(forecast, windows, cancelDate) {
+  for (const [key, window] of Object.entries(windows)) {
+    if (inRange(cancelDate, window.start, window.end)) forecast[key].cancellations += 1;
+  }
+}
+
+function totalCancellationForecast(rows) {
+  const forecast = {};
+  for (const row of rows) {
+    for (const [key, value] of Object.entries(row.cancellationForecast || {})) {
+      forecast[key] ||= {
+        label: value.label,
+        dateFrom: value.dateFrom,
+        dateTo: value.dateTo,
+        cancellations: 0
+      };
+      forecast[key].cancellations += value.cancellations || 0;
+    }
+  }
+  return forecast;
 }
 
 function isActiveStatus(status, cancelDate, end) {

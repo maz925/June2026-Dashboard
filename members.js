@@ -1,4 +1,4 @@
-const MEMBER_APP_VERSION = "member-dashboard-exclude-quest-new-v16-2026-06-09";
+const MEMBER_APP_VERSION = "member-dashboard-cancel-date-forecast-v17-2026-06-09";
 const REFRESH_CLUBS = ["Bankstown", "Wetherill Park", "580G", "Woolooware"];
 
 const number = new Intl.NumberFormat("en-AU", { maximumFractionDigits: 0 });
@@ -15,7 +15,7 @@ const state = {
     source: "Hapana Core Membership Detail",
     updated: null,
     clubs: [],
-    totals: { activeMembers: 0, standardActiveMembers: 0, fitnessPassportMembers: 0, cancellations: 0, suspensions: 0, newMemberships: 0, movement: {}, dailyActive: [] },
+    totals: { activeMembers: 0, standardActiveMembers: 0, fitnessPassportMembers: 0, cancellations: 0, suspensions: 0, newMemberships: 0, movement: {}, cancellationForecast: {}, dailyActive: [] },
     failures: []
   },
   connection: "loading"
@@ -91,6 +91,7 @@ function visibleTotals() {
     suspensions: row.suspensions || 0,
     newMemberships: row.newMemberships || 0,
     movement: row.movement || {},
+    cancellationForecast: row.cancellationForecast || {},
     dailyActive: row.dailyActive || []
   };
 }
@@ -163,6 +164,17 @@ function renderMovement() {
   setText("#currentFitnessPassportNewSales", number.format(current.fitnessPassportNewSales || 0));
   setText("#currentCancellations", number.format(current.cancellations || 0));
   setText("#currentSuspensions", number.format(current.suspensions || 0));
+}
+
+function renderCancellationForecast() {
+  const forecast = visibleTotals().cancellationForecast || {};
+  const current = forecast.currentMonth || {};
+  const next = forecast.nextMonth || {};
+
+  setText("#currentCancellationLabel", current.label ? `Current Month Cancellations (${current.label})` : "Current Month Cancellations");
+  setText("#nextCancellationLabel", next.label ? `Next Month Cancellations (${next.label})` : "Next Month Cancellations");
+  setText("#currentMonthCancellations", number.format(current.cancellations || 0));
+  setText("#nextMonthCancellations", number.format(next.cancellations || 0));
 }
 
 function renderPeriod() {
@@ -279,6 +291,7 @@ function render() {
   renderSource();
   renderMetrics();
   renderMovement();
+  renderCancellationForecast();
   renderPeriod();
   renderSummary();
   renderDailyChart();
