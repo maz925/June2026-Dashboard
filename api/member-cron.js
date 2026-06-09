@@ -1,4 +1,4 @@
-const MEMBER_CRON_VERSION = "member-cron-active-first-v2-2026-06-05";
+const MEMBER_CRON_VERSION = "member-cron-live-core-sequential-v3-2026-06-09";
 
 const CLUBS = ["Bankstown", "Wetherill Park", "580G", "Woolooware"];
 
@@ -22,7 +22,9 @@ module.exports = async function handler(request, response) {
 
     const origin = `https://${request.headers.host}`;
     const auth = request.headers.authorization || request.headers.Authorization || "";
-    const results = await Promise.all(CLUBS.map(async (club) => {
+    const results = [];
+
+    for (const club of CLUBS) {
       const url = new URL("/api/member-metrics", origin);
       url.searchParams.set("club", club);
       url.searchParams.set("source", "core");
@@ -35,14 +37,14 @@ module.exports = async function handler(request, response) {
       });
 
       const body = await result.json().catch(() => ({}));
-      return {
+      results.push({
         club,
         status: result.status,
         ok: result.ok || result.status === 207,
         error: body.error || null,
         failures: body.failures || []
-      };
-    }));
+      });
+    }
 
     const failed = results.filter((item) => !item.ok);
     response.status(failed.length ? 207 : 200).json({
