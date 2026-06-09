@@ -1,4 +1,4 @@
-const MEMBER_APP_VERSION = "member-dashboard-live-core-v11-2026-06-09";
+const MEMBER_APP_VERSION = "member-dashboard-fitness-passport-v12-2026-06-09";
 const REFRESH_CLUBS = ["Bankstown", "Wetherill Park", "580G", "Woolooware"];
 
 const number = new Intl.NumberFormat("en-AU", { maximumFractionDigits: 0 });
@@ -15,7 +15,7 @@ const state = {
     source: "Hapana Core Membership Detail",
     updated: null,
     clubs: [],
-    totals: { activeMembers: 0, cancellations: 0, suspensions: 0, newMemberships: 0, dailyActive: [] },
+    totals: { activeMembers: 0, standardActiveMembers: 0, fitnessPassportMembers: 0, cancellations: 0, suspensions: 0, newMemberships: 0, dailyActive: [] },
     failures: []
   },
   connection: "loading"
@@ -85,6 +85,8 @@ function visibleTotals() {
   const row = clubs[0] || {};
   return {
     activeMembers: row.activeMembers || 0,
+    standardActiveMembers: standardActive(row),
+    fitnessPassportMembers: row.fitnessPassportMembers || 0,
     cancellations: row.cancellations || 0,
     suspensions: row.suspensions || 0,
     newMemberships: row.newMemberships || 0,
@@ -137,9 +139,10 @@ function renderSource() {
 function renderMetrics() {
   const totals = visibleTotals();
   setText("#activeMembers", number.format(totals.activeMembers || 0));
+  setText("#standardActiveMembers", number.format(standardActive(totals)));
+  setText("#fitnessPassportMembers", number.format(totals.fitnessPassportMembers || 0));
   setText("#cancellations", number.format(totals.cancellations || 0));
   setText("#suspensions", number.format(totals.suspensions || 0));
-  setText("#newMemberships", number.format(totals.newMemberships || 0));
 }
 
 function renderPeriod() {
@@ -172,7 +175,9 @@ function renderSummary() {
         <span class="status ${row.warning || row.fallback ? "amber" : "green"}">${row.fallback ? "active only" : "members"}</span>
       </div>
       <div class="mini-grid">
-        <span><span class="mini-label">Active</span><strong class="mini-value">${number.format(row.activeMembers || 0)}</strong></span>
+        <span><span class="mini-label">Total Active</span><strong class="mini-value">${number.format(row.activeMembers || 0)}</strong></span>
+        <span><span class="mini-label">Standard</span><strong class="mini-value">${number.format(standardActive(row))}</strong></span>
+        <span><span class="mini-label">Fitness Passport</span><strong class="mini-value">${number.format(row.fitnessPassportMembers || 0)}</strong></span>
         <span><span class="mini-label">New</span><strong class="mini-value">${number.format(row.newMemberships || 0)}</strong></span>
         <span><span class="mini-label">Cancelled</span><strong class="mini-value negative">${number.format(row.cancellations || 0)}</strong></span>
         <span><span class="mini-label">Suspended</span><strong class="mini-value">${number.format(row.suspensions || 0)}</strong></span>
@@ -240,6 +245,8 @@ function renderDetail() {
     <tr>
       <td>${escapeHtml(row.club)}</td>
       <td>${number.format(row.activeMembers || 0)}</td>
+      <td>${number.format(standardActive(row))}</td>
+      <td>${number.format(row.fitnessPassportMembers || 0)}</td>
       <td>${number.format(row.cancellations || 0)}</td>
       <td>${number.format(row.suspensions || 0)}</td>
       <td>${number.format(row.newMemberships || 0)}</td>
@@ -322,6 +329,10 @@ async function refreshMemberMetrics() {
     button.disabled = false;
     button.textContent = originalText;
   }
+}
+
+function standardActive(row) {
+  return row.standardActiveMembers ?? Math.max(0, (row.activeMembers || 0) - (row.fitnessPassportMembers || 0));
 }
 
 

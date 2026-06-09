@@ -7,7 +7,7 @@ const {
 } = require("./core-report.js");
 
 const DEFAULT_HAPANA_BASE_URL = "https://api.hapana.com/v2";
-const MEMBER_METRICS_VERSION = "member-metrics-live-core-long-timeout-v11-2026-06-09";
+const MEMBER_METRICS_VERSION = "member-metrics-fitness-passport-split-v12-2026-06-09";
 const STORAGE_PATH = "member-metrics.json";
 const TIME_ZONE = "Australia/Sydney";
 
@@ -213,6 +213,8 @@ async function livePublicApiRow({ club, siteID }, window, debug) {
   return {
     club,
     activeMembers,
+    standardActiveMembers: activeMembers,
+    fitnessPassportMembers: 0,
     cancellations: 0,
     suspensions: 0,
     newMemberships: 0,
@@ -453,6 +455,7 @@ function summariseRecords(records, { club, dateFrom, dateTo }) {
   const end = parseHapanaDate(dateTo);
   const days = dateRange(start, end);
   let active = 0;
+  let fitnessPassport = 0;
   let cancellations = 0;
   let suspensions = 0;
   let newMemberships = 0;
@@ -464,11 +467,16 @@ function summariseRecords(records, { club, dateFrom, dateTo }) {
 
   for (const record of records) {
     const status = field(record, ["Package Status", "Membership Status", "Status", "Client Status", "Member Status"]);
+    const packageName = field(record, ["Package Name", "Membership Name", "Product Name"]);
     const startDate = bestDate(record, ["Start Date", "Membership Start Date", "Contract Start Date", "Sale Date", "Sold Date", "Purchase Date", "Created Date", "Join Date"]);
     const cancelDate = bestDate(record, ["Cancel Date", "Cancelled Date", "Cancellation Date", "Terminated Date", "End Date"]);
     const suspendDate = bestDate(record, ["Suspension Date", "Suspended Date", "Freeze Date", "Frozen Date", "Hold Date"]);
 
-    if (isActiveStatus(status, cancelDate, end)) active += 1;
+    const activeStatus = isActiveStatus(status, cancelDate, end);
+    if (activeStatus) {
+      active += 1;
+      if (isFitnessPassport(packageName)) fitnessPassport += 1;
+    }
     if (inRange(cancelDate, start, end) || /cancel|terminat/i.test(status)) cancellations += 1;
     if (inRange(suspendDate, start, end) || /suspend|freeze|frozen|hold/i.test(status)) suspensions += 1;
     if (inRange(startDate, start, end)) newMemberships += 1;
@@ -482,6 +490,8 @@ function summariseRecords(records, { club, dateFrom, dateTo }) {
   return {
     club,
     activeMembers: active,
+    standardActiveMembers: Math.max(0, active - fitnessPassport),
+    fitnessPassportMembers: fitnessPassport,
     cancellations,
     suspensions,
     newMemberships,
@@ -500,6 +510,8 @@ function totalRows(rows) {
 
   return {
     activeMembers: rows.reduce((sum, row) => sum + (row.activeMembers || 0), 0),
+    standardActiveMembers: rows.reduce((sum, row) => sum + (row.standardActiveMembers ?? Math.max(0, (row.activeMembers || 0) - (row.fitnessPassportMembers || 0))), 0),
+    fitnessPassportMembers: rows.reduce((sum, row) => sum + (row.fitnessPassportMembers || 0), 0),
     cancellations: rows.reduce((sum, row) => sum + (row.cancellations || 0), 0),
     suspensions: rows.reduce((sum, row) => sum + (row.suspensions || 0), 0),
     newMemberships: rows.reduce((sum, row) => sum + (row.newMemberships || 0), 0),
@@ -511,6 +523,10 @@ function isActiveStatus(status, cancelDate, end) {
   const text = String(status || "").toLowerCase();
   if (cancelDate && cancelDate <= end) return false;
   return text === "active";
+}
+
+function isFitnessPassport(packageName) {
+  return /fitness\s*passport/i.test(String(packageName || ""));
 }
 
 function isActiveOnDate({ status, startDate, cancelDate }, date) {
