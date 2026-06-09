@@ -100,6 +100,7 @@ module.exports = async function handler(request, response) {
         version: CORE_REPORT_VERSION,
         location: locationName,
         filters,
+        fields: extractRelevantReportFields(reportsHtml),
         text: textSnippet(reportsHtml)
       });
       return;
@@ -457,6 +458,43 @@ function absoluteUrl(url, base) {
 
 function textSnippet(html) {
   return decodeHtml(String(html).replace(/<script[\s\S]*?<\/script>/gi, "").replace(/<style[\s\S]*?<\/style>/gi, "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()).slice(0, 500);
+}
+
+function extractRelevantReportFields(html) {
+  const fields = [];
+  const relevant = /(status|suspend|active|cancel|package|membership|member|client|filter)/i;
+
+  for (const input of String(html || "").match(/<input\b[^>]*>/gi) || []) {
+    const field = {
+      tag: "input",
+      type: attr(input, "type"),
+      name: attr(input, "name"),
+      id: attr(input, "id"),
+      value: attr(input, "value")
+    };
+    if (relevant.test(Object.values(field).join(" "))) fields.push(field);
+  }
+
+  for (const selectMatch of String(html || "").matchAll(/<select\b([^>]*)>([\s\S]*?)<\/select>/gi)) {
+    const open = selectMatch[1] || "";
+    const body = selectMatch[2] || "";
+    const options = [...body.matchAll(/<option\b([^>]*)>([\s\S]*?)<\/option>/gi)]
+      .map((match) => ({
+        value: attr(match[1], "value"),
+        text: textSnippet(match[2]).slice(0, 120)
+      }))
+      .filter((option) => relevant.test(`${option.value} ${option.text}`))
+      .slice(0, 30);
+    const field = {
+      tag: "select",
+      name: attr(open, "name"),
+      id: attr(open, "id"),
+      options
+    };
+    if (relevant.test(`${field.name} ${field.id}`) || options.length) fields.push(field);
+  }
+
+  return fields.slice(0, 80);
 }
 
 function decodeHtml(value) {
