@@ -91,6 +91,7 @@ module.exports = async function handler(request, response) {
       await selectLocation(jar, locationName);
       const reportsUrl = new URL(REPORT_URL);
       reportsUrl.searchParams.set("report_type", "client");
+      if (url.searchParams.get("filter")) reportsUrl.searchParams.set("filter", url.searchParams.get("filter"));
       const reportsPage = await requestWithCookies(jar, reportsUrl.toString(), {
         headers: { "Referer": reportsUrl.toString() }
       });
