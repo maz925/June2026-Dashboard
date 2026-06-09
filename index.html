@@ -30,11 +30,29 @@
         <select id="clubFilter"></select>
       </label>
       <div class="tabs" role="tablist" aria-label="Views">
-        <button class="tab active" type="button" data-view="overview">Overview</button>
+        <button class="tab active" type="button" data-view="overview">4 Week Overview</button>
         <button class="tab" type="button" data-view="latest">Latest Week</button>
         <button class="tab" type="button" data-view="targets">Targets</button>
         <button class="tab" type="button" data-view="history">12 Weeks</button>
       </div>
+      <div class="toolbar-actions">
+        <button class="customise-button" id="customiseRevenueButton" type="button" aria-expanded="false">Customise</button>
+      </div>
+    </section>
+
+    <section class="custom-range-panel" id="customRevenuePanel" aria-label="Custom revenue date range" hidden>
+      <form id="revenueRangeForm" class="range-form">
+        <label class="filter">
+          <span>From</span>
+          <input id="revenueDateFrom" type="date" required>
+        </label>
+        <label class="filter">
+          <span>To</span>
+          <input id="revenueDateTo" type="date" required>
+        </label>
+        <button class="download-button" type="submit">Update Revenue</button>
+      </form>
+      <p class="form-status" id="revenueRangeStatus"></p>
     </section>
 
     <section class="metrics" aria-label="Key totals">

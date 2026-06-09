@@ -119,6 +119,11 @@ main {
   margin-bottom: 18px;
 }
 
+.toolbar-actions {
+  display: flex;
+  align-items: end;
+}
+
 .filter {
   display: grid;
   gap: 6px;
@@ -288,8 +293,40 @@ input[type="date"] {
   cursor: pointer;
 }
 
+.customise-button {
+  min-height: 42px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--ink);
+  background: #fff;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.customise-button[aria-expanded="true"] {
+  color: #fff;
+  background: var(--charcoal);
+}
+
 .download-button:hover {
   background: #111418;
+}
+
+.custom-range-panel {
+  margin: -6px 0 18px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 10px 24px rgba(31, 38, 46, 0.06);
+}
+
+.range-form {
+  display: grid;
+  grid-template-columns: minmax(170px, 0.8fr) minmax(170px, 0.8fr) auto;
+  gap: 12px;
+  align-items: end;
 }
 
 .form-status {
@@ -538,6 +575,7 @@ tr:last-child td {
 
 @media (max-width: 940px) {
   .toolbar,
+  .range-form,
   .download-form,
   .section-heading,
   .topbar {
@@ -547,6 +585,10 @@ tr:last-child td {
 
   .download-form {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .range-form {
+    grid-template-columns: 1fr 1fr auto;
   }
 
   .source {
@@ -607,6 +649,10 @@ tr:last-child td {
   }
 
   .download-form {
+    grid-template-columns: 1fr;
+  }
+
+  .range-form {
     grid-template-columns: 1fr;
   }
 }

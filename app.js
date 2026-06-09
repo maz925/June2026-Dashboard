@@ -2,7 +2,7 @@ window.HAPANA_PROXY_URL ||= window.location.hostname === "localhost" || window.l
   ? ""
   : "/api/hapana";
 
-const APP_VERSION = "dashboard-revenue-trend-v3-2026-06-04";
+const APP_VERSION = "dashboard-custom-revenue-range-v4-2026-06-09";
 
 let data = window.TRACKER_DATA;
 
@@ -25,7 +25,8 @@ const dateFormat = new Intl.DateTimeFormat("en-AU", {
 const state = {
   club: "All Clubs",
   view: "overview",
-  connection: "workbook"
+  connection: "workbook",
+  customRevenueWeekEnding: null
 };
 
 const clubFilter = document.querySelector("#clubFilter");
@@ -33,6 +34,12 @@ const reportDownloadForm = document.querySelector("#reportDownloadForm");
 const reportLocation = document.querySelector("#reportLocation");
 const reportDateFrom = document.querySelector("#reportDateFrom");
 const reportDateTo = document.querySelector("#reportDateTo");
+const customiseRevenueButton = document.querySelector("#customiseRevenueButton");
+const customRevenuePanel = document.querySelector("#customRevenuePanel");
+const revenueRangeForm = document.querySelector("#revenueRangeForm");
+const revenueDateFrom = document.querySelector("#revenueDateFrom");
+const revenueDateTo = document.querySelector("#revenueDateTo");
+const revenueRangeStatus = document.querySelector("#revenueRangeStatus");
 
 function uniqueLatestRows() {
   const seen = new Set();
@@ -103,7 +110,7 @@ function rowPeriod(row) {
 }
 
 function activeReportableWeek() {
-  const weekEnding = availableWeekEndings()[0] || data.rolling[0]?.weekEnding;
+  const weekEnding = state.customRevenueWeekEnding || availableWeekEndings()[0] || data.rolling[0]?.weekEnding;
   const row = data.rolling.find((item) => item.weekEnding === weekEnding && hasRevenue(item)) ||
     data.rolling.find((item) => item.weekEnding === weekEnding);
   return { weekEnding, cycle: rowPeriod(row) };
@@ -239,6 +246,17 @@ function escapeHtml(value) {
   }[char]));
 }
 
+function errorText(error) {
+  if (!error) return "Unknown error";
+  if (typeof error === "string") return error;
+  if (error.message) return error.message;
+  try {
+    return JSON.stringify(error);
+  } catch (jsonError) {
+    return String(error);
+  }
+}
+
 async function loadLiveData() {
   const proxyUrl = window.HAPANA_PROXY_URL || "";
   if (!proxyUrl) {
@@ -284,6 +302,52 @@ function mergeRollingRows(existingRows, liveRows) {
   return [...rowsByKey.values()].sort((a, b) => a.weekEnding.localeCompare(b.weekEnding) || a.club.localeCompare(b.club));
 }
 
+async function updateRevenueRange() {
+  const button = revenueRangeForm.querySelector("button");
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = "Updating...";
+  revenueRangeStatus.textContent = "Updating revenue data from Core Hapana...";
+
+  try {
+    const params = new URLSearchParams({
+      date_from: toHapanaDate(revenueDateFrom.value),
+      date_to: toHapanaDate(revenueDateTo.value)
+    });
+    const response = await fetch(`/api/weekly-revenue?${params.toString()}`, {
+      headers: { "Accept": "application/json" }
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok && response.status !== 207) {
+      throw new Error(errorText(body.error || body || `HTTP ${response.status}`));
+    }
+
+    data = {
+      ...data,
+      ...body,
+      rolling: enrichRollingRows(mergeRollingRows(data.rolling, body.rolling || [])),
+      targets: body.targets || data.targets,
+      dynamicTargets: body.dynamicTargets || data.dynamicTargets
+    };
+    state.connection = "live";
+    state.customRevenueWeekEnding = body.weekEnding || null;
+    renderSource();
+    render();
+
+    const failures = Array.isArray(body.failures)
+      ? body.failures.map((item) => `${item.club || "Club"}: ${errorText(item.error)}`)
+      : [];
+    revenueRangeStatus.textContent = failures.length
+      ? `Finished with issues: ${failures.join(" | ")}`
+      : "Revenue data updated.";
+  } catch (error) {
+    revenueRangeStatus.textContent = errorText(error);
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
+  }
+}
+
 function renderMetrics() {
   const targetRows = visible(data.targets);
   const rows = visible(metricRows());
@@ -311,6 +375,7 @@ function renderMetrics() {
 
 function metricRows() {
   if (state.view === "latest") return reportableRows();
+  if (state.customRevenueWeekEnding && state.view === "overview") return rowsForWeeks([state.customRevenueWeekEnding]);
   if (state.view === "overview") return rowsForWeeks(availableWeekEndings().slice(0, 4));
   if (state.view === "history") return rowsForWeeks(availableWeekEndings().slice(0, 12));
   return [];
@@ -326,7 +391,10 @@ function renderCycle() {
 
 function renderSummary() {
   const container = document.querySelector("#summaryGrid");
-  const rowsByClub = visible(rowsForWeeks(availableWeekEndings().slice(0, 4))).reduce((groups, row) => {
+  const overviewRows = state.customRevenueWeekEnding
+    ? rowsForWeeks([state.customRevenueWeekEnding])
+    : rowsForWeeks(availableWeekEndings().slice(0, 4));
+  const rowsByClub = visible(overviewRows).reduce((groups, row) => {
     groups[row.club] ||= [];
     groups[row.club].push(row);
     return groups;
@@ -547,6 +615,9 @@ function initControls() {
 
   const today = new Date();
   const sevenDaysAgo = addDays(today, -6);
+  const fourWeeksAgo = addDays(today, -27);
+  revenueDateFrom.value = formatInputDate(fourWeeksAgo);
+  revenueDateTo.value = formatInputDate(today);
   reportDateFrom.value = formatInputDate(sevenDaysAgo);
   reportDateTo.value = formatInputDate(today);
 }
@@ -571,6 +642,17 @@ clubFilter.addEventListener("change", (event) => {
 
 document.querySelectorAll(".tab").forEach((button) => {
   button.addEventListener("click", () => switchView(button.dataset.view));
+});
+
+customiseRevenueButton.addEventListener("click", () => {
+  const shouldOpen = customRevenuePanel.hidden;
+  customRevenuePanel.hidden = !shouldOpen;
+  customiseRevenueButton.setAttribute("aria-expanded", String(shouldOpen));
+});
+
+revenueRangeForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  updateRevenueRange();
 });
 
 reportDownloadForm.addEventListener("submit", (event) => {
