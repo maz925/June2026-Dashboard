@@ -113,7 +113,14 @@ module.exports = async function handler(request, response) {
       throw new Error(`Unknown report. Use one of: ${Object.keys(REPORTS).join(", ")}`);
     }
 
-    const csv = await downloadCoreReportCsv({ locationName, dateFrom, dateTo, reportKey, jar });
+    const csv = await downloadCoreReportCsv({
+      locationName,
+      dateFrom,
+      dateTo,
+      reportKey,
+      jar,
+      extraParams: reportParamsFromSearch(url.searchParams)
+    });
 
     const fileSafeLocation = locationName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
     const fileSafeDateFrom = dateFrom.replace(/\//g, "-");
@@ -245,7 +252,10 @@ async function downloadReport(jar, { dateFrom, dateTo, reportKey = "netRevenueDe
   reportUrl.searchParams.set("date_to", dateTo);
   reportUrl.searchParams.set("downloadfile", "xls");
   for (const [key, value] of Object.entries(extraParams || {})) {
-    if (value !== undefined && value !== null && value !== "") reportUrl.searchParams.set(key, value);
+    const values = Array.isArray(value) ? value : [value];
+    for (const item of values) {
+      if (item !== undefined && item !== null && item !== "") reportUrl.searchParams.append(key, item);
+    }
   }
 
   const report = await requestWithCookies(jar, reportUrl.toString(), {
@@ -321,6 +331,20 @@ async function requestWithCookies(jar, url, options = {}) {
 
 function isRedirect(status) {
   return [301, 302, 303, 307, 308].includes(status);
+}
+
+function reportParamsFromSearch(params) {
+  const reserved = new Set(["location", "date_from", "date_to", "debug", "report"]);
+  const output = {};
+  for (const [key, value] of params.entries()) {
+    if (reserved.has(key)) continue;
+    if (output[key]) {
+      output[key] = Array.isArray(output[key]) ? [...output[key], value] : [output[key], value];
+    } else {
+      output[key] = value;
+    }
+  }
+  return output;
 }
 
 function findInputName(html, candidates) {
