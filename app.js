@@ -2,7 +2,7 @@ window.HAPANA_PROXY_URL ||= window.location.hostname === "localhost" || window.l
   ? ""
   : "/api/hapana";
 
-const APP_VERSION = "dashboard-hapana-revenue-only-v7-2026-06-10";
+const APP_VERSION = "dashboard-hapana-complete-weeks-v8-2026-06-10";
 
 let data = window.TRACKER_DATA;
 
@@ -133,7 +133,7 @@ function availableWeekEndings() {
 }
 
 function isCompleteRevenueWeek(row) {
-  if (!row?.dateFrom || !row?.dateTo) return true;
+  if (!row?.dateFrom || !row?.dateTo) return false;
   const start = parseHapanaDate(row.dateFrom);
   const end = parseHapanaDate(row.dateTo);
   return start.getDay() === 5 && end.getDay() === 4 && addDays(start, 6).toDateString() === end.toDateString();
