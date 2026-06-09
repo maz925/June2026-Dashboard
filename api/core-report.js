@@ -227,7 +227,7 @@ async function downloadReport(jar, { dateFrom, dateTo, reportKey = "netRevenueDe
 
   const report = await requestWithCookies(jar, reportUrl.toString(), {
     headers: { "Referer": reportUrl.toString().replace("&downloadfile=xls", "") },
-    timeoutMs: 45000
+    timeoutMs: Number(process.env.HAPANA_CORE_REPORT_TIMEOUT_MS || 240000)
   });
   const body = await report.text();
 

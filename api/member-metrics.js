@@ -7,7 +7,7 @@ const {
 } = require("./core-report.js");
 
 const DEFAULT_HAPANA_BASE_URL = "https://api.hapana.com/v2";
-const MEMBER_METRICS_VERSION = "member-metrics-live-public-api-v10-2026-06-09";
+const MEMBER_METRICS_VERSION = "member-metrics-live-core-long-timeout-v11-2026-06-09";
 const STORAGE_PATH = "member-metrics.json";
 const TIME_ZONE = "Australia/Sydney";
 
@@ -45,7 +45,7 @@ module.exports = async function handler(request, response) {
 
     const window = monthWindow(url.searchParams);
     const debug = url.searchParams.get("debug");
-    const source = url.searchParams.get("source") || "public";
+    const source = url.searchParams.get("source") || "core";
     const targetLocations = locationsForRequest(url.searchParams);
 
     if (!targetLocations.length) {
@@ -165,7 +165,7 @@ async function loadExistingMemberMetrics() {
 function emptyPayload() {
   return {
     version: MEMBER_METRICS_VERSION,
-    source: "Hapana Public API Clients",
+    source: "Hapana Core Membership Detail",
     updated: null,
     clubs: [],
     totals: totalRows([]),
