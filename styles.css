@@ -409,6 +409,26 @@ input[type="date"] {
   background: #eef1f4;
 }
 
+.status-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  align-items: center;
+  margin: 0 0 18px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.status-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .mini-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
