@@ -148,17 +148,17 @@ async function createCoreSession() {
   return jar;
 }
 
-async function downloadCoreReportCsv({ locationName, dateFrom, dateTo, reportKey = "netRevenueDetail", jar }) {
+async function downloadCoreReportCsv({ locationName, dateFrom, dateTo, reportKey = "netRevenueDetail", jar, extraParams }) {
   if (!KNOWN_LOCATIONS.includes(locationName)) {
     throw new Error(`Unknown location. Use one of: ${KNOWN_LOCATIONS.join(", ")}`);
   }
 
   const session = jar || await createCoreSession();
   await selectLocation(session, locationName);
-  return downloadReport(session, { dateFrom, dateTo, reportKey });
+  return downloadReport(session, { dateFrom, dateTo, reportKey, extraParams });
 }
 
-async function downloadCoreAdvancedReportCsv({ locationName, dateFrom, dateTo, filter, reportType = "client", jar }) {
+async function downloadCoreAdvancedReportCsv({ locationName, dateFrom, dateTo, filter, reportType = "client", jar, extraParams }) {
   if (!filter) throw new Error("Report filter is required");
   if (!KNOWN_LOCATIONS.includes(locationName)) {
     throw new Error(`Unknown location. Use one of: ${KNOWN_LOCATIONS.join(", ")}`);
@@ -166,7 +166,7 @@ async function downloadCoreAdvancedReportCsv({ locationName, dateFrom, dateTo, f
 
   const session = jar || await createCoreSession();
   await selectLocation(session, locationName);
-  return downloadReport(session, { dateFrom, dateTo, filter, reportType });
+  return downloadReport(session, { dateFrom, dateTo, filter, reportType, extraParams });
 }
 
 async function login(jar, email, password) {
@@ -229,7 +229,7 @@ function locationSwitchUrl(locationName) {
     : "";
 }
 
-async function downloadReport(jar, { dateFrom, dateTo, reportKey = "netRevenueDetail", filter, reportType }) {
+async function downloadReport(jar, { dateFrom, dateTo, reportKey = "netRevenueDetail", filter, reportType, extraParams }) {
   const reportConfig = reportKey ? REPORTS[reportKey] : null;
   const resolvedFilter = filter || reportConfig?.filter;
   const resolvedReportType = reportType || reportConfig?.reportType || "client";
@@ -242,6 +242,9 @@ async function downloadReport(jar, { dateFrom, dateTo, reportKey = "netRevenueDe
   reportUrl.searchParams.set("date_from", dateFrom);
   reportUrl.searchParams.set("date_to", dateTo);
   reportUrl.searchParams.set("downloadfile", "xls");
+  for (const [key, value] of Object.entries(extraParams || {})) {
+    if (value !== undefined && value !== null && value !== "") reportUrl.searchParams.set(key, value);
+  }
 
   const report = await requestWithCookies(jar, reportUrl.toString(), {
     headers: { "Referer": reportUrl.toString().replace("&downloadfile=xls", "") },

@@ -7,7 +7,7 @@ const {
 } = require("./core-report.js");
 
 const DEFAULT_HAPANA_BASE_URL = "https://api.hapana.com/v2";
-const MEMBER_METRICS_VERSION = "member-metrics-cancel-date-forecast-v17-2026-06-09";
+const MEMBER_METRICS_VERSION = "member-metrics-suspended-status-v20-2026-06-09";
 const STORAGE_PATH = "member-metrics.json";
 const TIME_ZONE = "Australia/Sydney";
 
@@ -78,20 +78,30 @@ module.exports = async function handler(request, response) {
           continue;
         }
 
+        const jar = await createCoreSession();
         const csv = await downloadCoreReportCsv({
           locationName: location,
           dateFrom: window.dateFrom,
           dateTo: window.dateTo,
-          reportKey: "membershipDetail"
+          reportKey: "membershipDetail",
+          jar
         });
         const records = parseDelimited(csv);
-        rows.push(summariseRecords(records, { club, dateFrom: window.dateFrom, dateTo: window.dateTo }));
+        const suspended = await suspendedMembershipRecords({ location, window, jar });
+        const suspendedRecords = suspended.records;
+        const combinedRecords = records.concat(suspendedRecords);
+        const row = summariseRecords(combinedRecords, { club, dateFrom: window.dateFrom, dateTo: window.dateTo });
+        if (suspended.warning) row.warning = suspended.warning;
+        rows.push(row);
 
         if (debug === "headers") {
           samples.push({
             club,
             headers: Object.keys(records[0] || {}),
-            firstRows: records.slice(0, 3)
+            firstRows: records.slice(0, 3),
+            suspendedRows: suspendedRecords.length,
+            suspendedHeaders: Object.keys(suspendedRecords[0] || {}),
+            suspendedWarning: suspended.warning || null
           });
         }
       } catch (error) {
@@ -236,6 +246,45 @@ async function livePublicApiRow({ club, siteID }, window, debug) {
       }
     } : {})
   };
+}
+
+async function suspendedMembershipRecords({ location, window, jar }) {
+  try {
+    const csv = await downloadCoreReportCsv({
+      locationName: location,
+      dateFrom: window.dateFrom,
+      dateTo: window.dateTo,
+      reportKey: "membershipDetail",
+      jar,
+      extraParams: suspendedMembershipDetailParams()
+    });
+
+    return { records: parseDelimited(csv).filter(isSuspendedRecord), warning: "" };
+  } catch (error) {
+    return { records: [], warning: `Suspended members were not returned by Core Hapana: ${errorText(error)}` };
+  }
+}
+
+function suspendedMembershipDetailParams() {
+  const configured = process.env.HAPANA_SUSPENDED_STATUS_PARAMS;
+  if (configured) {
+    return Object.fromEntries(configured.split("&").map((part) => {
+      const [key, ...valueParts] = part.split("=");
+      return [decodeURIComponent(key || ""), decodeURIComponent(valueParts.join("=") || "")];
+    }).filter(([key]) => key));
+  }
+
+  return {
+    package_status: "Suspended",
+    membership_status: "Suspended",
+    member_status: "Suspended",
+    status: "Suspended"
+  };
+}
+
+function isSuspendedRecord(record) {
+  const status = field(record, ["Package Status", "Membership Status", "Status", "Client Status", "Member Status"]);
+  return /suspend|freeze|frozen|hold/i.test(status);
 }
 
 async function listClients(siteID) {
