@@ -2,7 +2,7 @@ window.HAPANA_PROXY_URL ||= window.location.hostname === "localhost" || window.l
   ? ""
   : "/api/hapana";
 
-const APP_VERSION = "dashboard-hapana-complete-weeks-v8-2026-06-10";
+const APP_VERSION = "dashboard-live-hapana-weeks-v9-2026-06-10";
 
 let data = window.TRACKER_DATA;
 
@@ -123,7 +123,10 @@ function distinctWeekEndings() {
 function reportableWeekEndings() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  return distinctWeekEndings().filter((weekEnding) => reportingCycle(weekEnding).availableFrom <= today);
+  return distinctWeekEndings().filter((weekEnding) =>
+    data.rolling.some((row) => row.weekEnding === weekEnding && hasRevenue(row) && isCompleteRevenueWeek(row)) ||
+    reportingCycle(weekEnding).availableFrom <= today
+  );
 }
 
 function availableWeekEndings() {
