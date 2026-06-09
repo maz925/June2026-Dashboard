@@ -1,4 +1,4 @@
-const MEMBER_APP_VERSION = "member-dashboard-fitness-passport-v12-2026-06-09";
+const MEMBER_APP_VERSION = "member-dashboard-movement-windows-v13-2026-06-09";
 const REFRESH_CLUBS = ["Bankstown", "Wetherill Park", "580G", "Woolooware"];
 
 const number = new Intl.NumberFormat("en-AU", { maximumFractionDigits: 0 });
@@ -15,7 +15,7 @@ const state = {
     source: "Hapana Core Membership Detail",
     updated: null,
     clubs: [],
-    totals: { activeMembers: 0, standardActiveMembers: 0, fitnessPassportMembers: 0, cancellations: 0, suspensions: 0, newMemberships: 0, dailyActive: [] },
+    totals: { activeMembers: 0, standardActiveMembers: 0, fitnessPassportMembers: 0, cancellations: 0, suspensions: 0, newMemberships: 0, movement: {}, dailyActive: [] },
     failures: []
   },
   connection: "loading"
@@ -90,6 +90,7 @@ function visibleTotals() {
     cancellations: row.cancellations || 0,
     suspensions: row.suspensions || 0,
     newMemberships: row.newMemberships || 0,
+    movement: row.movement || {},
     dailyActive: row.dailyActive || []
   };
 }
@@ -117,7 +118,7 @@ function initControls() {
   clubFilter.innerHTML = clubs.map((club) => `<option>${escapeHtml(club)}</option>`).join("");
 
   const today = new Date();
-  const start = new Date(today.getFullYear(), today.getMonth(), 1);
+  const start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
   memberDateFrom.value = formatInputDate(start);
   memberDateTo.value = formatInputDate(today);
 }
@@ -143,6 +144,21 @@ function renderMetrics() {
   setText("#fitnessPassportMembers", number.format(totals.fitnessPassportMembers || 0));
   setText("#cancellations", number.format(totals.cancellations || 0));
   setText("#suspensions", number.format(totals.suspensions || 0));
+}
+
+function renderMovement() {
+  const movement = visibleTotals().movement || {};
+  const previous = movement.previousMonth || {};
+  const current = movement.currentMonthToDate || {};
+
+  setText("#previousMovementLabel", previous.label ? `Previous Month (${previous.label})` : "Previous Month");
+  setText("#currentMovementLabel", current.label ? `Current MTD (${current.label})` : "Current MTD");
+  setText("#previousNewSales", number.format(previous.newSales || 0));
+  setText("#previousCancellations", number.format(previous.cancellations || 0));
+  setText("#previousSuspensions", number.format(previous.suspensions || 0));
+  setText("#currentNewSales", number.format(current.newSales || 0));
+  setText("#currentCancellations", number.format(current.cancellations || 0));
+  setText("#currentSuspensions", number.format(current.suspensions || 0));
 }
 
 function renderPeriod() {
@@ -258,6 +274,7 @@ function renderDetail() {
 function render() {
   renderSource();
   renderMetrics();
+  renderMovement();
   renderPeriod();
   renderSummary();
   renderDailyChart();

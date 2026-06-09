@@ -199,7 +199,7 @@ input[type="date"] {
   display: grid;
   grid-template-columns: 1.1fr 1fr;
   gap: 14px;
-  margin-bottom: 24px;
+  margin-bottom: 12px;
   padding: 16px;
   border-left: 5px solid var(--accent);
 }
@@ -208,6 +208,34 @@ input[type="date"] {
   display: block;
   margin-top: 4px;
   font-size: 1.05rem;
+}
+
+.movement-panel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.movement-panel article {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 10px 24px rgba(31, 38, 46, 0.06);
+}
+
+.movement-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.movement-grid strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 1.4rem;
 }
 
 .report-downloader {
@@ -517,6 +545,7 @@ tr:last-child td {
 
   .metrics,
   .cycle-panel,
+  .movement-panel,
   .summary-grid,
   .latest-grid,
   .target-grid {
@@ -536,6 +565,7 @@ tr:last-child td {
 
   .metrics,
   .cycle-panel,
+  .movement-panel,
   .summary-grid,
   .latest-grid,
   .target-grid {

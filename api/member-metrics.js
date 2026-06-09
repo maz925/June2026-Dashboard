@@ -7,7 +7,7 @@ const {
 } = require("./core-report.js");
 
 const DEFAULT_HAPANA_BASE_URL = "https://api.hapana.com/v2";
-const MEMBER_METRICS_VERSION = "member-metrics-fitness-passport-split-v12-2026-06-09";
+const MEMBER_METRICS_VERSION = "member-metrics-movement-windows-v13-2026-06-09";
 const STORAGE_PATH = "member-metrics.json";
 const TIME_ZONE = "Australia/Sydney";
 
@@ -453,12 +453,14 @@ function monthWindow(params) {
 function summariseRecords(records, { club, dateFrom, dateTo }) {
   const start = parseHapanaDate(dateFrom);
   const end = parseHapanaDate(dateTo);
+  const windows = movementWindows(end);
   const days = dateRange(start, end);
   let active = 0;
   let fitnessPassport = 0;
   let cancellations = 0;
   let suspensions = 0;
   let newMemberships = 0;
+  const movement = emptyMovement(windows);
 
   const dailyActive = days.map((date) => ({
     date: date.toISOString().slice(0, 10),
@@ -468,9 +470,10 @@ function summariseRecords(records, { club, dateFrom, dateTo }) {
   for (const record of records) {
     const status = field(record, ["Package Status", "Membership Status", "Status", "Client Status", "Member Status"]);
     const packageName = field(record, ["Package Name", "Membership Name", "Product Name"]);
-    const startDate = bestDate(record, ["Start Date", "Membership Start Date", "Contract Start Date", "Sale Date", "Sold Date", "Purchase Date", "Created Date", "Join Date"]);
+    const startDate = bestDate(record, ["Start Date", "Membership Start Date", "Contract Start Date", "Sale Date", "Sold Date", "Purchase Date", "Created Date", "Join Date", "Date Sold", "Member Created Date"]);
+    const soldDate = bestDate(record, ["Date Sold", "Sale Date", "Sold Date", "Purchase Date", "Created Date", "Member Created Date", "Join Date"]);
     const cancelDate = bestDate(record, ["Cancel Date", "Cancelled Date", "Cancellation Date", "Terminated Date", "End Date"]);
-    const suspendDate = bestDate(record, ["Suspension Date", "Suspended Date", "Freeze Date", "Frozen Date", "Hold Date"]);
+    const suspendDate = bestDate(record, ["Suspension Date", "Suspended Date", "Freeze Date", "Frozen Date", "Hold Date", "Member Inactive Date"]);
 
     const activeStatus = isActiveStatus(status, cancelDate, end);
     if (activeStatus) {
@@ -480,6 +483,13 @@ function summariseRecords(records, { club, dateFrom, dateTo }) {
     if (inRange(cancelDate, start, end) || /cancel|terminat/i.test(status)) cancellations += 1;
     if (inRange(suspendDate, start, end) || /suspend|freeze|frozen|hold/i.test(status)) suspensions += 1;
     if (inRange(startDate, start, end)) newMemberships += 1;
+    addMovement(movement, windows, {
+      status,
+      soldDate,
+      cancelDate,
+      suspendDate,
+      startDate
+    });
 
     dailyActive.forEach((point) => {
       const pointDate = new Date(`${point.date}T00:00:00Z`);
@@ -495,6 +505,7 @@ function summariseRecords(records, { club, dateFrom, dateTo }) {
     cancellations,
     suspensions,
     newMemberships,
+    movement,
     dailyActive,
     rowCount: records.length
   };
@@ -515,8 +526,77 @@ function totalRows(rows) {
     cancellations: rows.reduce((sum, row) => sum + (row.cancellations || 0), 0),
     suspensions: rows.reduce((sum, row) => sum + (row.suspensions || 0), 0),
     newMemberships: rows.reduce((sum, row) => sum + (row.newMemberships || 0), 0),
+    movement: totalMovement(rows),
     dailyActive: [...byDate.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, active]) => ({ date, active }))
   };
+}
+
+function movementWindows(end) {
+  const currentStart = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), 1));
+  const previousStart = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth() - 1, 1));
+  const previousEnd = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), 0));
+  return {
+    previousMonth: {
+      label: previousStart.toISOString().slice(0, 7),
+      dateFrom: hapanaDate(previousStart),
+      dateTo: hapanaDate(previousEnd),
+      start: previousStart,
+      end: previousEnd
+    },
+    currentMonthToDate: {
+      label: end.toISOString().slice(0, 7),
+      dateFrom: hapanaDate(currentStart),
+      dateTo: hapanaDate(end),
+      start: currentStart,
+      end
+    }
+  };
+}
+
+function emptyMovement(windows) {
+  return Object.fromEntries(Object.entries(windows).map(([key, window]) => [
+    key,
+    {
+      label: window.label,
+      dateFrom: window.dateFrom,
+      dateTo: window.dateTo,
+      newSales: 0,
+      cancellations: 0,
+      suspensions: 0
+    }
+  ]));
+}
+
+function addMovement(movement, windows, { status, soldDate, cancelDate, suspendDate, startDate }) {
+  for (const [key, window] of Object.entries(windows)) {
+    if (inRange(soldDate || startDate, window.start, window.end)) movement[key].newSales += 1;
+    if (inRange(cancelDate, window.start, window.end) || (/cancel|terminat/i.test(status) && inRange(cancelDate || startDate, window.start, window.end))) {
+      movement[key].cancellations += 1;
+    }
+    if (inRange(suspendDate, window.start, window.end) || (/suspend|freeze|frozen|hold/i.test(status) && inRange(suspendDate || startDate, window.start, window.end))) {
+      movement[key].suspensions += 1;
+    }
+  }
+}
+
+function totalMovement(rows) {
+  const movement = {};
+  for (const row of rows) {
+    for (const [key, value] of Object.entries(row.movement || {})) {
+      movement[key] ||= {
+        label: value.label,
+        dateFrom: value.dateFrom,
+        dateTo: value.dateTo,
+        newSales: 0,
+        cancellations: 0,
+        suspensions: 0
+      };
+      movement[key].newSales += value.newSales || 0;
+      movement[key].cancellations += value.cancellations || 0;
+      movement[key].suspensions += value.suspensions || 0;
+    }
+  }
+  return movement;
 }
 
 function isActiveStatus(status, cancelDate, end) {
