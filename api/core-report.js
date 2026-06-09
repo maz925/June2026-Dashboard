@@ -102,7 +102,6 @@ module.exports = async function handler(request, response) {
         location: locationName,
         filters,
         fields: extractRelevantReportFields(reportsHtml),
-        matches: extractReportMatches(reportsHtml, ["Suspended", "Package Status", "Membership Status", "Freeze", "Hold"]),
         text: textSnippet(reportsHtml)
       });
       return;
@@ -521,23 +520,6 @@ function extractRelevantReportFields(html) {
   }
 
   return fields.slice(0, 80);
-}
-
-function extractReportMatches(html, terms) {
-  const source = String(html || "");
-  return Object.fromEntries(terms.map((term) => {
-    const snippets = [];
-    const pattern = new RegExp(escapeRegExp(term), "ig");
-    let match;
-    while ((match = pattern.exec(source)) && snippets.length < 8) {
-      snippets.push(textSnippet(source.slice(Math.max(0, match.index - 300), match.index + 300)));
-    }
-    return [term, snippets];
-  }));
-}
-
-function escapeRegExp(value) {
-  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function decodeHtml(value) {
