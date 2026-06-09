@@ -1,7 +1,7 @@
 const { get, put } = require("@vercel/blob");
 const { downloadCoreReportCsv } = require("./core-report.js");
 
-const WEEKLY_REVENUE_VERSION = "weekly-revenue-gross-ex-gst-v3-2026-06-04";
+const WEEKLY_REVENUE_VERSION = "weekly-revenue-club-refresh-v4-2026-06-09";
 const STORAGE_PATH = "weekly-revenue.json";
 const TIME_ZONE = "Australia/Sydney";
 
@@ -32,10 +32,11 @@ module.exports = async function handler(request, response) {
 
     const url = new URL(request.url, `https://${request.headers.host || "localhost"}`);
     const window = reportWindow(url.searchParams);
+    const targetLocations = locationsForRequest(url.searchParams);
     const rows = [];
     const failures = [];
 
-    for (const { club, location } of LOCATIONS) {
+    for (const { club, location } of targetLocations) {
       try {
         const csv = await downloadCoreReportCsv({
           locationName: location,
@@ -96,6 +97,24 @@ function assertCronAccess(request) {
 
   if (auth === `Bearer ${secret}` || querySecret === secret) return;
   throw new Error("Not authorised to run weekly revenue update");
+}
+
+function locationsForRequest(params) {
+  if (params.get("all") === "1") return LOCATIONS;
+  const requested = params.get("club") || params.get("location");
+  if (!requested) return LOCATIONS;
+
+  const normalised = normaliseClub(requested);
+  return LOCATIONS.filter(({ club, location }) =>
+    normaliseClub(club) === normalised || normaliseClub(location) === normalised
+  );
+}
+
+function normaliseClub(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/^ufc\s+gym\s+/, "")
+    .replace(/[^a-z0-9]+/g, "");
 }
 
 async function loadExistingWeeklyRevenue() {

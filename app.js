@@ -2,7 +2,7 @@ window.HAPANA_PROXY_URL ||= window.location.hostname === "localhost" || window.l
   ? ""
   : "/api/hapana";
 
-const APP_VERSION = "dashboard-custom-revenue-range-v4-2026-06-09";
+const APP_VERSION = "dashboard-custom-revenue-club-refresh-v5-2026-06-09";
 
 let data = window.TRACKER_DATA;
 
@@ -40,6 +40,7 @@ const revenueRangeForm = document.querySelector("#revenueRangeForm");
 const revenueDateFrom = document.querySelector("#revenueDateFrom");
 const revenueDateTo = document.querySelector("#revenueDateTo");
 const revenueRangeStatus = document.querySelector("#revenueRangeStatus");
+const REVENUE_REFRESH_CLUBS = ["Bankstown", "Wetherill Park", "580G", "Woolooware"];
 
 function uniqueLatestRows() {
   const seen = new Set();
@@ -307,36 +308,44 @@ async function updateRevenueRange() {
   const originalText = button.textContent;
   button.disabled = true;
   button.textContent = "Updating...";
-  revenueRangeStatus.textContent = "Updating revenue data from Core Hapana...";
+  const dateFrom = toHapanaDate(revenueDateFrom.value);
+  const dateTo = toHapanaDate(revenueDateTo.value);
+  const refreshedRows = [];
+  const failures = [];
+  let latestBody = null;
+  revenueRangeStatus.textContent = "Starting revenue update from Core Hapana...";
 
   try {
-    const params = new URLSearchParams({
-      date_from: toHapanaDate(revenueDateFrom.value),
-      date_to: toHapanaDate(revenueDateTo.value)
-    });
-    const response = await fetch(`/api/weekly-revenue?${params.toString()}`, {
-      headers: { "Accept": "application/json" }
-    });
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok && response.status !== 207) {
-      throw new Error(errorText(body.error || body || `HTTP ${response.status}`));
+    for (const [index, club] of REVENUE_REFRESH_CLUBS.entries()) {
+      revenueRangeStatus.textContent = `Updating ${club} (${index + 1} of ${REVENUE_REFRESH_CLUBS.length}) from Core Hapana...`;
+      const params = new URLSearchParams({ club, date_from: dateFrom, date_to: dateTo });
+      const body = await fetchRevenueRange(params);
+      latestBody = body;
+
+      if (Array.isArray(body.failures) && body.failures.length) {
+        failures.push(...body.failures.map((item) => `${item.club || club}: ${errorText(item.error)}`));
+      }
+
+      const row = (body.rolling || []).find((item) =>
+        item.club === club && item.dateFrom === dateFrom && item.dateTo === dateTo
+      );
+      if (row) refreshedRows.push(row);
     }
+
+    if (!refreshedRows.length) throw new Error("No revenue rows were returned for that date range.");
 
     data = {
       ...data,
-      ...body,
-      rolling: enrichRollingRows(mergeRollingRows(data.rolling, body.rolling || [])),
-      targets: body.targets || data.targets,
-      dynamicTargets: body.dynamicTargets || data.dynamicTargets
+      ...(latestBody || {}),
+      rolling: enrichRollingRows(mergeRollingRows(data.rolling, refreshedRows)),
+      targets: latestBody?.targets || data.targets,
+      dynamicTargets: latestBody?.dynamicTargets || data.dynamicTargets
     };
     state.connection = "live";
-    state.customRevenueWeekEnding = body.weekEnding || null;
+    state.customRevenueWeekEnding = latestBody?.weekEnding || null;
     renderSource();
     render();
 
-    const failures = Array.isArray(body.failures)
-      ? body.failures.map((item) => `${item.club || "Club"}: ${errorText(item.error)}`)
-      : [];
     revenueRangeStatus.textContent = failures.length
       ? `Finished with issues: ${failures.join(" | ")}`
       : "Revenue data updated.";
@@ -345,6 +354,30 @@ async function updateRevenueRange() {
   } finally {
     button.disabled = false;
     button.textContent = originalText;
+  }
+}
+
+async function fetchRevenueRange(params) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 295000);
+
+  try {
+    const response = await fetch(`/api/weekly-revenue?${params.toString()}`, {
+      headers: { "Accept": "application/json" },
+      signal: controller.signal
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok && response.status !== 207) {
+      throw new Error(errorText(body.error || body || `HTTP ${response.status}`));
+    }
+    return body;
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      throw new Error("Core Hapana took too long for one club. Try a shorter date range.");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
