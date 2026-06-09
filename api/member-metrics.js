@@ -275,6 +275,9 @@ function suspendedMembershipDetailParams() {
   }
 
   return {
+    "parent_selection[]": "paymentStatus",
+    "value[]": "Hold",
+    paymentStatus: "Hold",
     package_status: "Suspended",
     membership_status: "Suspended",
     member_status: "Suspended",
