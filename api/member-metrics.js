@@ -7,7 +7,7 @@ const {
 } = require("./core-report.js");
 
 const DEFAULT_HAPANA_BASE_URL = "https://api.hapana.com/v2";
-const MEMBER_METRICS_VERSION = "member-metrics-movement-windows-v13-2026-06-09";
+const MEMBER_METRICS_VERSION = "member-metrics-new-sales-fp-split-v14-2026-06-09";
 const STORAGE_PATH = "member-metrics.json";
 const TIME_ZONE = "Australia/Sydney";
 
@@ -485,6 +485,7 @@ function summariseRecords(records, { club, dateFrom, dateTo }) {
     if (inRange(startDate, start, end)) newMemberships += 1;
     addMovement(movement, windows, {
       status,
+      packageName,
       soldDate,
       cancelDate,
       suspendDate,
@@ -561,15 +562,24 @@ function emptyMovement(windows) {
       dateFrom: window.dateFrom,
       dateTo: window.dateTo,
       newSales: 0,
+      standardNewSales: 0,
+      fitnessPassportNewSales: 0,
       cancellations: 0,
       suspensions: 0
     }
   ]));
 }
 
-function addMovement(movement, windows, { status, soldDate, cancelDate, suspendDate, startDate }) {
+function addMovement(movement, windows, { status, packageName, soldDate, cancelDate, suspendDate, startDate }) {
   for (const [key, window] of Object.entries(windows)) {
-    if (inRange(soldDate || startDate, window.start, window.end)) movement[key].newSales += 1;
+    if (inRange(soldDate || startDate, window.start, window.end)) {
+      movement[key].newSales += 1;
+      if (isFitnessPassport(packageName)) {
+        movement[key].fitnessPassportNewSales += 1;
+      } else {
+        movement[key].standardNewSales += 1;
+      }
+    }
     if (inRange(cancelDate, window.start, window.end) || (/cancel|terminat/i.test(status) && inRange(cancelDate || startDate, window.start, window.end))) {
       movement[key].cancellations += 1;
     }
@@ -588,10 +598,14 @@ function totalMovement(rows) {
         dateFrom: value.dateFrom,
         dateTo: value.dateTo,
         newSales: 0,
+        standardNewSales: 0,
+        fitnessPassportNewSales: 0,
         cancellations: 0,
         suspensions: 0
       };
       movement[key].newSales += value.newSales || 0;
+      movement[key].standardNewSales += value.standardNewSales ?? Math.max(0, (value.newSales || 0) - (value.fitnessPassportNewSales || 0));
+      movement[key].fitnessPassportNewSales += value.fitnessPassportNewSales || 0;
       movement[key].cancellations += value.cancellations || 0;
       movement[key].suspensions += value.suspensions || 0;
     }

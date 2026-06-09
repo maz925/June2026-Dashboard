@@ -1,4 +1,4 @@
-const MEMBER_APP_VERSION = "member-dashboard-movement-windows-v13-2026-06-09";
+const MEMBER_APP_VERSION = "member-dashboard-new-sales-fp-split-v14-2026-06-09";
 const REFRESH_CLUBS = ["Bankstown", "Wetherill Park", "580G", "Woolooware"];
 
 const number = new Intl.NumberFormat("en-AU", { maximumFractionDigits: 0 });
@@ -154,9 +154,13 @@ function renderMovement() {
   setText("#previousMovementLabel", previous.label ? `Previous Month (${previous.label})` : "Previous Month");
   setText("#currentMovementLabel", current.label ? `Current MTD (${current.label})` : "Current MTD");
   setText("#previousNewSales", number.format(previous.newSales || 0));
+  setText("#previousStandardNewSales", number.format(standardNewSales(previous)));
+  setText("#previousFitnessPassportNewSales", number.format(previous.fitnessPassportNewSales || 0));
   setText("#previousCancellations", number.format(previous.cancellations || 0));
   setText("#previousSuspensions", number.format(previous.suspensions || 0));
   setText("#currentNewSales", number.format(current.newSales || 0));
+  setText("#currentStandardNewSales", number.format(standardNewSales(current)));
+  setText("#currentFitnessPassportNewSales", number.format(current.fitnessPassportNewSales || 0));
   setText("#currentCancellations", number.format(current.cancellations || 0));
   setText("#currentSuspensions", number.format(current.suspensions || 0));
 }
@@ -346,6 +350,10 @@ async function refreshMemberMetrics() {
 
 function standardActive(row) {
   return row.standardActiveMembers ?? Math.max(0, (row.activeMembers || 0) - (row.fitnessPassportMembers || 0));
+}
+
+function standardNewSales(row) {
+  return row.standardNewSales ?? Math.max(0, (row.newSales || 0) - (row.fitnessPassportNewSales || 0));
 }
 
 
