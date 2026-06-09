@@ -7,7 +7,7 @@ const {
 } = require("./core-report.js");
 
 const DEFAULT_HAPANA_BASE_URL = "https://api.hapana.com/v2";
-const MEMBER_METRICS_VERSION = "member-metrics-active-operating-new-sales-v15-2026-06-09";
+const MEMBER_METRICS_VERSION = "member-metrics-exclude-quest-new-v16-2026-06-09";
 const STORAGE_PATH = "member-metrics.json";
 const TIME_ZONE = "Australia/Sydney";
 
@@ -483,7 +483,7 @@ function summariseRecords(records, { club, dateFrom, dateTo }) {
     }
     if (inRange(cancelDate, start, end) || /cancel|terminat/i.test(status)) cancellations += 1;
     if (inRange(suspendDate, start, end) || /suspend|freeze|frozen|hold/i.test(status)) suspensions += 1;
-    if (isNewSale({ status, packageCategory, soldDate, startDate, cancelDate, windowStart: start, windowEnd: end })) newMemberships += 1;
+    if (isNewSale({ status, packageName, packageCategory, soldDate, startDate, cancelDate, windowStart: start, windowEnd: end })) newMemberships += 1;
     addMovement(movement, windows, {
       status,
       packageName,
@@ -574,7 +574,7 @@ function emptyMovement(windows) {
 
 function addMovement(movement, windows, { status, packageName, packageCategory, soldDate, cancelDate, suspendDate, startDate }) {
   for (const [key, window] of Object.entries(windows)) {
-    if (isNewSale({ status, packageCategory, soldDate, startDate, cancelDate, windowStart: window.start, windowEnd: window.end })) {
+    if (isNewSale({ status, packageName, packageCategory, soldDate, startDate, cancelDate, windowStart: window.start, windowEnd: window.end })) {
       movement[key].newSales += 1;
       if (isFitnessPassport(packageName)) {
         movement[key].fitnessPassportNewSales += 1;
@@ -621,15 +621,20 @@ function isActiveStatus(status, cancelDate, end) {
   return text === "active";
 }
 
-function isNewSale({ status, packageCategory, soldDate, startDate, cancelDate, windowStart, windowEnd }) {
+function isNewSale({ status, packageName, packageCategory, soldDate, startDate, cancelDate, windowStart, windowEnd }) {
   const saleDate = soldDate || startDate;
   return isActiveStatus(status, cancelDate, windowEnd)
     && isOperatingClubMembership(packageCategory)
+    && !isExcludedNewSalePackage(packageName)
     && inRange(saleDate, windowStart, windowEnd);
 }
 
 function isOperatingClubMembership(packageCategory) {
   return normaliseHeader(packageCategory) === "operatingclubmemberships";
+}
+
+function isExcludedNewSalePackage(packageName) {
+  return normaliseHeader(packageName) === "questguestexperience";
 }
 
 function isFitnessPassport(packageName) {
