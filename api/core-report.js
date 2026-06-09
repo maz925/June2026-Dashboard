@@ -87,6 +87,24 @@ module.exports = async function handler(request, response) {
       return;
     }
 
+    if (debug === "reports") {
+      await selectLocation(jar, locationName);
+      const reportsUrl = new URL(REPORT_URL);
+      reportsUrl.searchParams.set("report_type", "client");
+      const reportsPage = await requestWithCookies(jar, reportsUrl.toString(), {
+        headers: { "Referer": reportsUrl.toString() }
+      });
+      const reportsHtml = await reportsPage.text();
+      const filters = [...new Set([...reportsHtml.matchAll(/get[A-Za-z0-9_]+/g)].map((match) => match[0]))].sort();
+      response.status(200).json({
+        version: CORE_REPORT_VERSION,
+        location: locationName,
+        filters,
+        text: textSnippet(reportsHtml)
+      });
+      return;
+    }
+
     const reportKey = url.searchParams.get("report") || "netRevenueDetail";
     const reportConfig = REPORTS[reportKey];
     if (!reportConfig) {
