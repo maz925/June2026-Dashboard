@@ -2,7 +2,7 @@ window.HAPANA_PROXY_URL ||= window.location.hostname === "localhost" || window.l
   ? ""
   : "/api/hapana";
 
-const APP_VERSION = "dashboard-custom-revenue-club-refresh-v5-2026-06-09";
+const APP_VERSION = "dashboard-custom-revenue-single-club-v6-2026-06-09";
 
 let data = window.TRACKER_DATA;
 
@@ -40,7 +40,6 @@ const revenueRangeForm = document.querySelector("#revenueRangeForm");
 const revenueDateFrom = document.querySelector("#revenueDateFrom");
 const revenueDateTo = document.querySelector("#revenueDateTo");
 const revenueRangeStatus = document.querySelector("#revenueRangeStatus");
-const REVENUE_REFRESH_CLUBS = ["Bankstown", "Wetherill Park", "580G", "Woolooware"];
 
 function uniqueLatestRows() {
   const seen = new Set();
@@ -306,49 +305,47 @@ function mergeRollingRows(existingRows, liveRows) {
 async function updateRevenueRange() {
   const button = revenueRangeForm.querySelector("button");
   const originalText = button.textContent;
+  const club = state.club;
+  if (club === "All Clubs") {
+    revenueRangeStatus.textContent = "Select one club first, then update the custom revenue range.";
+    return;
+  }
+
   button.disabled = true;
   button.textContent = "Updating...";
   const dateFrom = toHapanaDate(revenueDateFrom.value);
   const dateTo = toHapanaDate(revenueDateTo.value);
-  const refreshedRows = [];
-  const failures = [];
-  let latestBody = null;
-  revenueRangeStatus.textContent = "Starting revenue update from Core Hapana...";
+  revenueRangeStatus.textContent = `Updating ${club} from Core Hapana...`;
 
   try {
-    for (const [index, club] of REVENUE_REFRESH_CLUBS.entries()) {
-      revenueRangeStatus.textContent = `Updating ${club} (${index + 1} of ${REVENUE_REFRESH_CLUBS.length}) from Core Hapana...`;
-      const params = new URLSearchParams({ club, date_from: dateFrom, date_to: dateTo });
-      const body = await fetchRevenueRange(params);
-      latestBody = body;
+    const params = new URLSearchParams({ club, date_from: dateFrom, date_to: dateTo });
+    const body = await fetchRevenueRange(params);
+    const refreshedRows = (body.rolling || []).filter((item) =>
+      item.club === club && item.dateFrom === dateFrom && item.dateTo === dateTo
+    );
 
-      if (Array.isArray(body.failures) && body.failures.length) {
-        failures.push(...body.failures.map((item) => `${item.club || club}: ${errorText(item.error)}`));
-      }
-
-      const row = (body.rolling || []).find((item) =>
-        item.club === club && item.dateFrom === dateFrom && item.dateTo === dateTo
-      );
-      if (row) refreshedRows.push(row);
+    if (!refreshedRows.length) {
+      throw new Error(`No revenue row was returned for ${club} in that date range.`);
     }
-
-    if (!refreshedRows.length) throw new Error("No revenue rows were returned for that date range.");
 
     data = {
       ...data,
-      ...(latestBody || {}),
+      ...body,
       rolling: enrichRollingRows(mergeRollingRows(data.rolling, refreshedRows)),
-      targets: latestBody?.targets || data.targets,
-      dynamicTargets: latestBody?.dynamicTargets || data.dynamicTargets
+      targets: body.targets || data.targets,
+      dynamicTargets: body.dynamicTargets || data.dynamicTargets
     };
     state.connection = "live";
-    state.customRevenueWeekEnding = latestBody?.weekEnding || null;
+    state.customRevenueWeekEnding = body.weekEnding || null;
     renderSource();
     render();
 
+    const failures = Array.isArray(body.failures)
+      ? body.failures.map((item) => `${item.club || club}: ${errorText(item.error)}`)
+      : [];
     revenueRangeStatus.textContent = failures.length
       ? `Finished with issues: ${failures.join(" | ")}`
-      : "Revenue data updated.";
+      : `${club} revenue data updated.`;
   } catch (error) {
     revenueRangeStatus.textContent = errorText(error);
   } finally {
