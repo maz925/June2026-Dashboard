@@ -1,4 +1,4 @@
-const MEMBER_APP_VERSION = "member-dashboard-new-sales-fp-split-v14-2026-06-09";
+const MEMBER_APP_VERSION = "member-dashboard-active-operating-new-sales-v15-2026-06-09";
 const REFRESH_CLUBS = ["Bankstown", "Wetherill Park", "580G", "Woolooware"];
 
 const number = new Intl.NumberFormat("en-AU", { maximumFractionDigits: 0 });

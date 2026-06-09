@@ -7,7 +7,7 @@ const {
 } = require("./core-report.js");
 
 const DEFAULT_HAPANA_BASE_URL = "https://api.hapana.com/v2";
-const MEMBER_METRICS_VERSION = "member-metrics-new-sales-fp-split-v14-2026-06-09";
+const MEMBER_METRICS_VERSION = "member-metrics-active-operating-new-sales-v15-2026-06-09";
 const STORAGE_PATH = "member-metrics.json";
 const TIME_ZONE = "Australia/Sydney";
 
@@ -470,6 +470,7 @@ function summariseRecords(records, { club, dateFrom, dateTo }) {
   for (const record of records) {
     const status = field(record, ["Package Status", "Membership Status", "Status", "Client Status", "Member Status"]);
     const packageName = field(record, ["Package Name", "Membership Name", "Product Name"]);
+    const packageCategory = field(record, ["Package Category", "Membership Category", "Product Category"]);
     const startDate = bestDate(record, ["Start Date", "Membership Start Date", "Contract Start Date", "Sale Date", "Sold Date", "Purchase Date", "Created Date", "Join Date", "Date Sold", "Member Created Date"]);
     const soldDate = bestDate(record, ["Date Sold", "Sale Date", "Sold Date", "Purchase Date", "Created Date", "Member Created Date", "Join Date"]);
     const cancelDate = bestDate(record, ["Cancel Date", "Cancelled Date", "Cancellation Date", "Terminated Date", "End Date"]);
@@ -482,10 +483,11 @@ function summariseRecords(records, { club, dateFrom, dateTo }) {
     }
     if (inRange(cancelDate, start, end) || /cancel|terminat/i.test(status)) cancellations += 1;
     if (inRange(suspendDate, start, end) || /suspend|freeze|frozen|hold/i.test(status)) suspensions += 1;
-    if (inRange(startDate, start, end)) newMemberships += 1;
+    if (isNewSale({ status, packageCategory, soldDate, startDate, cancelDate, windowStart: start, windowEnd: end })) newMemberships += 1;
     addMovement(movement, windows, {
       status,
       packageName,
+      packageCategory,
       soldDate,
       cancelDate,
       suspendDate,
@@ -570,9 +572,9 @@ function emptyMovement(windows) {
   ]));
 }
 
-function addMovement(movement, windows, { status, packageName, soldDate, cancelDate, suspendDate, startDate }) {
+function addMovement(movement, windows, { status, packageName, packageCategory, soldDate, cancelDate, suspendDate, startDate }) {
   for (const [key, window] of Object.entries(windows)) {
-    if (inRange(soldDate || startDate, window.start, window.end)) {
+    if (isNewSale({ status, packageCategory, soldDate, startDate, cancelDate, windowStart: window.start, windowEnd: window.end })) {
       movement[key].newSales += 1;
       if (isFitnessPassport(packageName)) {
         movement[key].fitnessPassportNewSales += 1;
@@ -617,6 +619,17 @@ function isActiveStatus(status, cancelDate, end) {
   const text = String(status || "").toLowerCase();
   if (cancelDate && cancelDate <= end) return false;
   return text === "active";
+}
+
+function isNewSale({ status, packageCategory, soldDate, startDate, cancelDate, windowStart, windowEnd }) {
+  const saleDate = soldDate || startDate;
+  return isActiveStatus(status, cancelDate, windowEnd)
+    && isOperatingClubMembership(packageCategory)
+    && inRange(saleDate, windowStart, windowEnd);
+}
+
+function isOperatingClubMembership(packageCategory) {
+  return normaliseHeader(packageCategory) === "operatingclubmemberships";
 }
 
 function isFitnessPassport(packageName) {
