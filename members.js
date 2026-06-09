@@ -1,4 +1,4 @@
-const MEMBER_APP_VERSION = "member-dashboard-cancel-date-forecast-v17-2026-06-09";
+const MEMBER_APP_VERSION = "member-dashboard-current-cancel-summary-v18-2026-06-09";
 const REFRESH_CLUBS = ["Bankstown", "Wetherill Park", "580G", "Woolooware"];
 
 const number = new Intl.NumberFormat("en-AU", { maximumFractionDigits: 0 });
@@ -211,8 +211,8 @@ function renderSummary() {
         <span><span class="mini-label">Standard</span><strong class="mini-value">${number.format(standardActive(row))}</strong></span>
         <span><span class="mini-label">Fitness Passport</span><strong class="mini-value">${number.format(row.fitnessPassportMembers || 0)}</strong></span>
         <span><span class="mini-label">New</span><strong class="mini-value">${number.format(row.newMemberships || 0)}</strong></span>
-        <span><span class="mini-label">Cancelled</span><strong class="mini-value negative">${number.format(row.cancellations || 0)}</strong></span>
-        <span><span class="mini-label">Suspended</span><strong class="mini-value">${number.format(row.suspensions || 0)}</strong></span>
+        <span><span class="mini-label">Current Cancelled</span><strong class="mini-value negative">${number.format(currentMonthCancellations(row))}</strong></span>
+        <span><span class="mini-label">Current Suspended</span><strong class="mini-value">${number.format(row.suspensions || 0)}</strong></span>
       </div>
       ${row.warning ? `<p class="note">${escapeHtml(row.warning)}</p>` : ""}
     </article>
@@ -367,6 +367,10 @@ function standardActive(row) {
 
 function standardNewSales(row) {
   return row.standardNewSales ?? Math.max(0, (row.newSales || 0) - (row.fitnessPassportNewSales || 0));
+}
+
+function currentMonthCancellations(row) {
+  return row.cancellationForecast?.currentMonth?.cancellations || 0;
 }
 
 
