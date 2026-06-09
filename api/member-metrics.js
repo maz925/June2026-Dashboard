@@ -6,15 +6,16 @@ const {
   requestWithCookies
 } = require("./core-report.js");
 
-const MEMBER_METRICS_VERSION = "member-metrics-package-status-active-v9-2026-06-08";
+const DEFAULT_HAPANA_BASE_URL = "https://api.hapana.com/v2";
+const MEMBER_METRICS_VERSION = "member-metrics-live-public-api-v10-2026-06-09";
 const STORAGE_PATH = "member-metrics.json";
 const TIME_ZONE = "Australia/Sydney";
 
 const LOCATIONS = [
-  { club: "Bankstown", location: "UFC GYM Bankstown" },
-  { club: "Wetherill Park", location: "UFC GYM Wetherill Park" },
-  { club: "580G", location: "UFC GYM 580 George" },
-  { club: "Woolooware", location: "UFC GYM Woolooware" }
+  { club: "Bankstown", location: "UFC GYM Bankstown", siteID: "Z0R6ZkxvWThJWGxEeUxnd2UyY2tKdz09" },
+  { club: "Wetherill Park", location: "UFC GYM Wetherill Park", siteID: "UWNnS2tUM3VDeUN0YTlaWlBDM3lqdz09" },
+  { club: "580G", location: "UFC GYM 580 George", siteID: "QTBOOHBBZDRFL3F5QjNBcTJaZHdxUT09" },
+  { club: "Woolooware", location: "UFC GYM Woolooware", siteID: "RTM4ZWdHWjNnVUdPeXl4TDlmWVFVUT09" }
 ];
 
 module.exports = async function handler(request, response) {
@@ -44,7 +45,7 @@ module.exports = async function handler(request, response) {
 
     const window = monthWindow(url.searchParams);
     const debug = url.searchParams.get("debug");
-    const deep = url.searchParams.get("deep") === "1";
+    const source = url.searchParams.get("source") || "public";
     const targetLocations = locationsForRequest(url.searchParams);
 
     if (!targetLocations.length) {
@@ -64,10 +65,17 @@ module.exports = async function handler(request, response) {
       ? existing.clubs || []
       : [];
 
-    for (const { club, location } of targetLocations) {
+    for (const locationConfig of targetLocations) {
+      const { club, location } = locationConfig;
       try {
-        if (!deep) {
-          throw new Error("Current active members require Membership Detail. Retry with deep=1.");
+        if (source !== "core") {
+          const row = await livePublicApiRow(locationConfig, window, debug);
+          rows.push({
+            ...(existingClubs.find((existingRow) => existingRow.club === club) || {}),
+            ...row
+          });
+          if (debug === "public") samples.push(row.debug);
+          continue;
         }
 
         const csv = await downloadCoreReportCsv({
@@ -110,7 +118,7 @@ module.exports = async function handler(request, response) {
 
     const payload = {
       version: MEMBER_METRICS_VERSION,
-      source: "Hapana Core Membership Detail",
+      source: source === "core" ? "Hapana Core Membership Detail" : "Hapana Public API Clients",
       updated: new Date().toISOString(),
       dateFrom: window.dateFrom,
       dateTo: window.dateTo,
@@ -157,7 +165,7 @@ async function loadExistingMemberMetrics() {
 function emptyPayload() {
   return {
     version: MEMBER_METRICS_VERSION,
-    source: "Hapana Core Membership Detail",
+    source: "Hapana Public API Clients",
     updated: null,
     clubs: [],
     totals: totalRows([]),
@@ -188,6 +196,151 @@ function mergeClubRows(existingRows, newRows) {
   return LOCATIONS
     .map(({ club }) => rowsByClub.get(club))
     .filter(Boolean);
+}
+
+async function livePublicApiRow({ club, siteID }, window, debug) {
+  const clients = await listClients(siteID);
+  const classified = clients.map(classifyClientActive);
+  const unknown = classified.filter((item) => item.active === null);
+
+  if (clients.length && unknown.length === clients.length) {
+    throw new Error(`Hapana Public API client rows for ${club} do not include a recognisable active/status field`);
+  }
+
+  const activeMembers = classified.filter((item) => item.active).length;
+  const days = dateRange(parseHapanaDate(window.dateFrom), parseHapanaDate(window.dateTo));
+
+  return {
+    club,
+    activeMembers,
+    cancellations: 0,
+    suspensions: 0,
+    newMemberships: 0,
+    dailyActive: days.map((date) => ({
+      date: date.toISOString().slice(0, 10),
+      active: activeMembers
+    })),
+    rowCount: clients.length,
+    liveSource: "hapana-public-api-clients",
+    ...(debug === "public" ? {
+      debug: {
+        club,
+        siteID,
+        rowCount: clients.length,
+        activeMembers,
+        unknownStatusRows: unknown.length,
+        sampleKeys: Object.keys(clients[0] || {}),
+        statusSamples: classified.slice(0, 5).map((item) => item.evidence)
+      }
+    } : {})
+  };
+}
+
+async function listClients(siteID) {
+  const pageSize = Number(process.env.HAPANA_CLIENT_PAGE_SIZE || 500);
+  const maxPages = Number(process.env.HAPANA_CLIENT_MAX_PAGES || 100);
+  const clients = [];
+
+  for (let pageIndex = 0; pageIndex < maxPages; pageIndex += 1) {
+    const url = publicApiUrl("/customer/client");
+    url.searchParams.set("pageSize", String(pageSize));
+    url.searchParams.set("pageIndex", String(pageIndex));
+
+    const body = await hapanaGet(url, siteID);
+    const page = Array.isArray(body.data) ? body.data : [];
+    clients.push(...page);
+
+    if (!page.length || page.length < pageSize || body.hasMore === false || body.has_more === false) break;
+  }
+
+  return clients;
+}
+
+async function hapanaGet(url, siteID = "") {
+  const accessID = process.env.HAPANA_ACCESS_ID;
+  if (!accessID) throw new Error("HAPANA_ACCESS_ID is not configured");
+
+  const headers = {
+    "Accept": "application/json",
+    "accessID": accessID
+  };
+  if (siteID) headers.siteID = siteID;
+
+  const response = await fetch(url.toString(), { headers });
+  if (!response.ok) throw new Error(`Hapana Public API request failed: ${response.status}`);
+
+  const body = await response.json();
+  if (body.success === false || body.code >= 400) {
+    throw new Error(body.message || `Hapana Public API returned ${body.code}`);
+  }
+
+  return body;
+}
+
+function publicApiUrl(path) {
+  const baseUrl = process.env.HAPANA_BASE_URL || DEFAULT_HAPANA_BASE_URL;
+  return new URL(`${baseUrl.replace(/\/$/, "")}/${path.replace(/^\//, "")}`);
+}
+
+function classifyClientActive(client) {
+  const candidates = [
+    "status",
+    "clientStatus",
+    "client_status",
+    "memberStatus",
+    "member_status",
+    "membershipStatus",
+    "membership_status",
+    "packageStatus",
+    "package_status",
+    "state",
+    "isActive",
+    "active"
+  ];
+
+  for (const key of candidates) {
+    const value = getPath(client, key);
+    if (value === undefined || value === null || value === "") continue;
+    const active = activeValue(value);
+    if (active !== null) return { active, evidence: { key, value } };
+  }
+
+  const flattened = flattenObject(client);
+  for (const [key, value] of Object.entries(flattened)) {
+    if (!/(status|active|state)/i.test(key)) continue;
+    const active = activeValue(value);
+    if (active !== null) return { active, evidence: { key, value } };
+  }
+
+  return { active: null, evidence: null };
+}
+
+function activeValue(value) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value === 1 ? true : value === 0 ? false : null;
+
+  const text = String(value || "").trim().toLowerCase();
+  if (!text) return null;
+  if (["active", "current", "open", "ok", "yes", "true", "1"].includes(text)) return true;
+  if (/^(inactive|cancelled|canceled|complete|completed|suspended|pending|scheduled|expired|deleted|terminated|false|no|0)$/.test(text)) return false;
+  return null;
+}
+
+function getPath(object, key) {
+  return key.split(".").reduce((value, part) => value?.[part], object);
+}
+
+function flattenObject(value, prefix = "", output = {}) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return output;
+  for (const [key, child] of Object.entries(value)) {
+    const path = prefix ? `${prefix}.${key}` : key;
+    if (child && typeof child === "object" && !Array.isArray(child)) {
+      flattenObject(child, path, output);
+    } else {
+      output[path] = child;
+    }
+  }
+  return output;
 }
 
 async function activeFallbackRow(club, window) {

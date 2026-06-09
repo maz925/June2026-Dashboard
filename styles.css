@@ -226,21 +226,6 @@ input[type="date"] {
   align-items: end;
 }
 
-.member-import-form {
-  grid-template-columns: minmax(210px, 0.7fr) minmax(280px, 1.4fr) auto;
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
-}
-
-input[type="file"] {
-  min-height: 42px;
-  padding: 8px 10px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: #fff;
-  color: var(--ink);
-}
 
 .download-button {
   min-height: 42px;

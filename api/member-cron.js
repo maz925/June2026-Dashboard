@@ -25,7 +25,6 @@ module.exports = async function handler(request, response) {
     const results = await Promise.all(CLUBS.map(async (club) => {
       const url = new URL("/api/member-metrics", origin);
       url.searchParams.set("club", club);
-      url.searchParams.set("deep", "1");
 
       const result = await fetch(url.toString(), {
         headers: {

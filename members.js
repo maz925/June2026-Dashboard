@@ -1,4 +1,4 @@
-const MEMBER_APP_VERSION = "member-dashboard-csv-import-v9-2026-06-08";
+const MEMBER_APP_VERSION = "member-dashboard-live-public-api-v10-2026-06-09";
 const REFRESH_CLUBS = ["Bankstown", "Wetherill Park", "580G", "Woolooware"];
 
 const number = new Intl.NumberFormat("en-AU", { maximumFractionDigits: 0 });
@@ -23,13 +23,9 @@ const state = {
 
 const clubFilter = document.querySelector("#clubFilter");
 const refreshForm = document.querySelector("#memberRefreshForm");
-const importForm = document.querySelector("#memberImportForm");
 const memberDateFrom = document.querySelector("#memberDateFrom");
 const memberDateTo = document.querySelector("#memberDateTo");
 const memberRefreshStatus = document.querySelector("#memberRefreshStatus");
-const memberImportStatus = document.querySelector("#memberImportStatus");
-const memberImportClub = document.querySelector("#memberImportClub");
-const memberImportFile = document.querySelector("#memberImportFile");
 
 function parseDate(value) {
   return new Date(`${value}T00:00:00`);
@@ -285,11 +281,6 @@ refreshForm.addEventListener("submit", (event) => {
   refreshMemberMetrics();
 });
 
-importForm.addEventListener("submit", (event) => {
-  event.preventDefault();
-  importMemberCsv();
-});
-
 async function refreshMemberMetrics() {
   const button = refreshForm.querySelector("button");
   button.disabled = true;
@@ -302,8 +293,7 @@ async function refreshMemberMetrics() {
       const params = new URLSearchParams({
         club,
         date_from: toHapanaDate(memberDateFrom.value),
-        date_to: toHapanaDate(memberDateTo.value),
-        deep: "1"
+        date_to: toHapanaDate(memberDateTo.value)
       });
       const response = await fetch(`/api/member-metrics?${params.toString()}`, {
         headers: { "Accept": "application/json" }
@@ -333,41 +323,6 @@ async function refreshMemberMetrics() {
   }
 }
 
-async function importMemberCsv() {
-  const button = importForm.querySelector("button");
-  button.disabled = true;
-  const originalText = button.textContent;
-
-  try {
-    const file = memberImportFile.files[0];
-    if (!file) throw new Error("Choose a Membership Detail CSV file first.");
-
-    const body = new FormData();
-    body.set("club", memberImportClub.value);
-    body.set("date_from", toHapanaDate(memberDateFrom.value));
-    body.set("date_to", toHapanaDate(memberDateTo.value));
-    body.set("file", file);
-
-    memberImportStatus.textContent = `Importing ${memberImportClub.value}...`;
-    const response = await fetch("/api/member-import", {
-      method: "POST",
-      body
-    });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(errorText(payload.error || payload || `HTTP ${response.status}`));
-
-    await loadMemberData();
-    initControls();
-    render();
-    memberImportFile.value = "";
-    memberImportStatus.textContent = `Imported ${memberImportClub.value}: ${number.format(payload.imported?.activeMembers || 0)} active members.`;
-  } catch (error) {
-    memberImportStatus.textContent = errorText(error);
-  } finally {
-    button.disabled = false;
-    button.textContent = originalText;
-  }
-}
 
 function errorText(error) {
   if (!error) return "Unknown error";
