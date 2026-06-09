@@ -7,7 +7,7 @@ const {
 } = require("./core-report.js");
 
 const DEFAULT_HAPANA_BASE_URL = "https://api.hapana.com/v2";
-const MEMBER_METRICS_VERSION = "member-metrics-suspended-status-v20-2026-06-09";
+const MEMBER_METRICS_VERSION = "member-metrics-suspended-config-v21-2026-06-09";
 const STORAGE_PATH = "member-metrics.json";
 const TIME_ZONE = "Australia/Sydney";
 
@@ -249,6 +249,9 @@ async function livePublicApiRow({ club, siteID }, window, debug) {
 }
 
 async function suspendedMembershipRecords({ location, window, jar }) {
+  const extraParams = suspendedMembershipDetailParams();
+  if (!extraParams) return { records: [], warning: "" };
+
   try {
     const csv = await downloadCoreReportCsv({
       locationName: location,
@@ -256,7 +259,7 @@ async function suspendedMembershipRecords({ location, window, jar }) {
       dateTo: window.dateTo,
       reportKey: "membershipDetail",
       jar,
-      extraParams: suspendedMembershipDetailParams()
+      extraParams
     });
 
     return { records: parseDelimited(csv).filter(isSuspendedRecord), warning: "" };
@@ -274,15 +277,7 @@ function suspendedMembershipDetailParams() {
     }).filter(([key]) => key));
   }
 
-  return {
-    "parent_selection[]": "paymentStatus",
-    "value[]": "Hold",
-    paymentStatus: "Hold",
-    package_status: "Suspended",
-    membership_status: "Suspended",
-    member_status: "Suspended",
-    status: "Suspended"
-  };
+  return null;
 }
 
 function isSuspendedRecord(record) {
