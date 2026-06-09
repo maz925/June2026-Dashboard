@@ -1,4 +1,4 @@
-const MEMBER_APP_VERSION = "member-dashboard-current-cancel-summary-v18-2026-06-09";
+const MEMBER_APP_VERSION = "member-dashboard-current-detail-cancel-v19-2026-06-09";
 const REFRESH_CLUBS = ["Bankstown", "Wetherill Park", "580G", "Woolooware"];
 
 const number = new Intl.NumberFormat("en-AU", { maximumFractionDigits: 0 });
@@ -279,7 +279,7 @@ function renderDetail() {
       <td>${number.format(row.activeMembers || 0)}</td>
       <td>${number.format(standardActive(row))}</td>
       <td>${number.format(row.fitnessPassportMembers || 0)}</td>
-      <td>${number.format(row.cancellations || 0)}</td>
+      <td>${number.format(currentMonthCancellations(row))}</td>
       <td>${number.format(row.suspensions || 0)}</td>
       <td>${number.format(row.newMemberships || 0)}</td>
       <td>${row.fallback ? "Fallback" : number.format(row.rowCount || 0)}</td>
