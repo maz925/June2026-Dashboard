@@ -292,29 +292,25 @@ async function refreshMemberMetrics() {
   const button = refreshForm.querySelector("button");
   button.disabled = true;
   const originalText = button.textContent;
-  const failures = [];
 
   try {
-    for (const club of REFRESH_CLUBS) {
-      memberRefreshStatus.textContent = `Updating ${club}...`;
-      const params = new URLSearchParams({
-        club,
-        date_from: toHapanaDate(memberDateFrom.value),
-        date_to: toHapanaDate(memberDateTo.value),
-        source: "core"
-      });
-      const response = await fetch(`/api/member-metrics?${params.toString()}`, {
-        headers: { "Accept": "application/json" }
-      });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok && response.status !== 207) {
-        failures.push(`${club}: ${errorText(body.error || body || `HTTP ${response.status}`)}`);
-        continue;
-      }
-      if (Array.isArray(body.failures) && body.failures.length) {
-        failures.push(...body.failures.map((item) => `${item.club || club}: ${errorText(item.error)}`));
-      }
+    memberRefreshStatus.textContent = "Updating all clubs...";
+    const params = new URLSearchParams({
+      all: "1",
+      date_from: toHapanaDate(memberDateFrom.value),
+      date_to: toHapanaDate(memberDateTo.value),
+      source: "core"
+    });
+    const response = await fetch(`/api/member-metrics?${params.toString()}`, {
+      headers: { "Accept": "application/json" }
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok && response.status !== 207) {
+      throw new Error(errorText(body.error || body || `HTTP ${response.status}`));
     }
+    const failures = Array.isArray(body.failures)
+      ? body.failures.map((item) => `${item.club || "Club"}: ${errorText(item.error)}`)
+      : [];
 
     memberRefreshStatus.textContent = "Member data updated. Refreshing dashboard...";
     await loadMemberData();

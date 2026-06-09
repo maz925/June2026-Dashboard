@@ -1,6 +1,4 @@
-const MEMBER_CRON_VERSION = "member-cron-live-core-sequential-v3-2026-06-09";
-
-const CLUBS = ["Bankstown", "Wetherill Park", "580G", "Woolooware"];
+const MEMBER_CRON_VERSION = "member-cron-live-core-all-v4-2026-06-09";
 
 module.exports = async function handler(request, response) {
   response.setHeader("Access-Control-Allow-Origin", "*");
@@ -22,35 +20,27 @@ module.exports = async function handler(request, response) {
 
     const origin = `https://${request.headers.host}`;
     const auth = request.headers.authorization || request.headers.Authorization || "";
-    const results = [];
+    const url = new URL("/api/member-metrics", origin);
+    url.searchParams.set("all", "1");
+    url.searchParams.set("source", "core");
 
-    for (const club of CLUBS) {
-      const url = new URL("/api/member-metrics", origin);
-      url.searchParams.set("club", club);
-      url.searchParams.set("source", "core");
+    const result = await fetch(url.toString(), {
+      headers: {
+        "Accept": "application/json",
+        ...(auth ? { "Authorization": auth } : {})
+      }
+    });
 
-      const result = await fetch(url.toString(), {
-        headers: {
-          "Accept": "application/json",
-          ...(auth ? { "Authorization": auth } : {})
-        }
-      });
-
-      const body = await result.json().catch(() => ({}));
-      results.push({
-        club,
-        status: result.status,
-        ok: result.ok || result.status === 207,
-        error: body.error || null,
-        failures: body.failures || []
-      });
-    }
-
-    const failed = results.filter((item) => !item.ok);
-    response.status(failed.length ? 207 : 200).json({
+    const body = await result.json().catch(() => ({}));
+    response.status(result.ok || result.status === 207 ? result.status : 207).json({
       version: MEMBER_CRON_VERSION,
       updated: new Date().toISOString(),
-      results
+      status: result.status,
+      ok: result.ok || result.status === 207,
+      failures: body.failures || [],
+      clubs: body.clubs || [],
+      totals: body.totals || null,
+      error: body.error || null
     });
   } catch (error) {
     response.status(500).json({ error: error.message });
