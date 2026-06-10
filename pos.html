@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>UFC GYM POS Dashboard</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">UFC GYM Team Dashboard</p>
+      <h1>POS Dashboard</h1>
+    </div>
+    <div class="source">
+      <nav class="top-links" aria-label="Dashboard links">
+        <a href="/">DD / POS</a>
+        <a href="/members.html">Members</a>
+        <a aria-current="page" href="/pos.html">POS</a>
+      </nav>
+      <span id="connectionStatus"></span>
+      <span id="sourceName"></span>
+      <span id="updatedAt"></span>
+    </div>
+  </header>
+
+  <main>
+    <section class="toolbar" aria-label="Dashboard filters">
+      <label class="filter">
+        <span>Club</span>
+        <select id="clubFilter"></select>
+      </label>
+    </section>
+
+    <section class="metrics" aria-label="POS totals">
+      <article>
+        <span>Total POS Sales</span>
+        <strong id="totalSales"></strong>
+      </article>
+      <article>
+        <span>Food & Beverage</span>
+        <strong id="foodAndBeverage"></strong>
+      </article>
+      <article>
+        <span>Merchandise</span>
+        <strong id="merchandise"></strong>
+      </article>
+      <article>
+        <span>Fees</span>
+        <strong id="fees"></strong>
+      </article>
+      <article>
+        <span>Transactions</span>
+        <strong id="transactionCount"></strong>
+      </article>
+    </section>
+
+    <section class="cycle-panel" aria-label="POS reporting period">
+      <div>
+        <span class="mini-label">POS Detail period</span>
+        <strong id="posPeriod"></strong>
+      </div>
+      <div>
+        <span class="mini-label">Data source</span>
+        <strong id="posSource"></strong>
+      </div>
+    </section>
+
+    <section class="report-downloader" aria-label="POS refresh">
+      <div class="section-heading">
+        <h2>POS Refresh</h2>
+        <p>Updates the selected club from Core Hapana Net Revenue Detail.</p>
+      </div>
+      <form id="posRefreshForm" class="download-form">
+        <label class="filter">
+          <span>From</span>
+          <input id="posDateFrom" type="date" required>
+        </label>
+        <label class="filter">
+          <span>To</span>
+          <input id="posDateTo" type="date" required>
+        </label>
+        <button class="download-button" type="submit">Update POS</button>
+      </form>
+      <p class="form-status" id="posRefreshStatus" role="status"></p>
+    </section>
+
+    <section class="view active">
+      <div class="section-heading">
+        <h2>Club POS Summary</h2>
+        <p>Top products and POS sales mix over the selected 12-week period.</p>
+      </div>
+      <div class="summary-grid" id="posSummaryGrid"></div>
+    </section>
+
+    <section>
+      <div class="section-heading">
+        <h2>POS Detail</h2>
+        <p>Food & Beverage, Merchandise, Fees and top 3 products by club.</p>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Club</th>
+              <th>Total POS</th>
+              <th>Food & Beverage</th>
+              <th>Merchandise</th>
+              <th>Fees</th>
+              <th>Other POS</th>
+              <th>Top Product 1</th>
+              <th>Top Product 2</th>
+              <th>Top Product 3</th>
+              <th>Transactions</th>
+            </tr>
+          </thead>
+          <tbody id="posDetailBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="auth.js"></script>
+  <script src="pos.js"></script>
+</body>
+</html>
