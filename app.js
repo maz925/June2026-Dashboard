@@ -323,11 +323,20 @@ async function loadLiveData() {
 }
 
 function mergeRollingRows(existingRows, liveRows) {
-  const rowsByKey = new Map(existingRows.map((row) => [`${row.weekEnding}|${row.club}`, row]));
+  const rowsByKey = new Map(existingRows.map((row) => [rollingRowKey(row), row]));
   for (const row of liveRows) {
-    rowsByKey.set(`${row.weekEnding}|${row.club}`, row);
+    rowsByKey.set(rollingRowKey(row), row);
   }
-  return [...rowsByKey.values()].sort((a, b) => a.weekEnding.localeCompare(b.weekEnding) || a.club.localeCompare(b.club));
+  return [...rowsByKey.values()].sort((a, b) =>
+    a.weekEnding.localeCompare(b.weekEnding) ||
+    String(a.dateFrom || "").localeCompare(String(b.dateFrom || "")) ||
+    String(a.dateTo || "").localeCompare(String(b.dateTo || "")) ||
+    a.club.localeCompare(b.club)
+  );
+}
+
+function rollingRowKey(row) {
+  return `${row.weekEnding}|${row.dateFrom || ""}|${row.dateTo || ""}|${row.club}`;
 }
 
 async function updateRevenueRange() {

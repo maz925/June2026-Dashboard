@@ -118,7 +118,7 @@ function normaliseClub(value) {
 }
 
 async function loadExistingWeeklyRevenue() {
-  const result = await get(STORAGE_PATH, { access: "private" }).catch(() => null);
+  const result = await get(STORAGE_PATH, { access: "private", useCache: false }).catch(() => null);
   if (!result || result.statusCode !== 200 || !result.stream) return null;
   return new Response(result.stream).json();
 }
@@ -126,15 +126,21 @@ async function loadExistingWeeklyRevenue() {
 function mergeRollingRows(existingRows, newRows) {
   const rowsByKey = new Map();
   for (const row of existingRows) {
-    if (row?.weekEnding && row?.club) rowsByKey.set(`${row.weekEnding}|${row.club}`, row);
+    if (row?.weekEnding && row?.club) rowsByKey.set(rollingRowKey(row), row);
   }
   for (const row of newRows) {
-    if (row?.weekEnding && row?.club) rowsByKey.set(`${row.weekEnding}|${row.club}`, row);
+    if (row?.weekEnding && row?.club) rowsByKey.set(rollingRowKey(row), row);
   }
   return [...rowsByKey.values()].sort((a, b) =>
     String(a.weekEnding).localeCompare(String(b.weekEnding)) ||
+    String(a.dateFrom || "").localeCompare(String(b.dateFrom || "")) ||
+    String(a.dateTo || "").localeCompare(String(b.dateTo || "")) ||
     String(a.club).localeCompare(String(b.club))
   );
+}
+
+function rollingRowKey(row) {
+  return `${row.weekEnding}|${row.dateFrom || ""}|${row.dateTo || ""}|${row.club}`;
 }
 
 function reportWindow(params) {
