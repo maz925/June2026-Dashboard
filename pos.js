@@ -1,4 +1,4 @@
-const POS_APP_VERSION = "pos-dashboard-v1-2026-06-10";
+const POS_APP_VERSION = "pos-dashboard-period-v2-2026-06-10";
 const CLUBS = ["Bankstown", "Wetherill Park", "580G", "Woolooware"];
 
 const money = new Intl.NumberFormat("en-AU", {
@@ -20,6 +20,7 @@ const state = {
     updated: null,
     dateFrom: "",
     dateTo: "",
+    periodMode: "rolling12Weeks",
     totals: { totalSales: 0, transactionCount: 0, foodAndBeverage: 0, merchandise: 0, fees: 0, other: 0 },
     clubs: [],
     failures: []
@@ -55,11 +56,9 @@ function initControls() {
   const clubs = ["All Clubs", ...new Set([...CLUBS, ...state.data.clubs.map((row) => row.club)])].filter(Boolean);
   clubFilter.innerHTML = clubs.map((club) => `<option>${escapeHtml(club)}</option>`).join("");
 
-  const today = new Date();
-  const end = previousReportableThursday(today);
-  const start = addDays(end, -83);
-  posDateFrom.value = formatInputDate(start);
-  posDateTo.value = formatInputDate(end);
+  const rolling = rollingDateInputs();
+  posDateFrom.value = rolling.dateFrom;
+  posDateTo.value = rolling.dateTo;
 }
 
 function previousReportableThursday(date) {
@@ -105,10 +104,14 @@ function renderMetrics() {
 }
 
 function renderPeriod() {
-  if (state.data.dateFrom && state.data.dateTo) {
-    setText("#posPeriod", `${formatDate(parseHapanaDate(state.data.dateFrom))} to ${formatDate(parseHapanaDate(state.data.dateTo))}`);
+  const period = visiblePeriod();
+  if (period.periodMode === "mixed") {
+    setText("#posPeriod", "Mixed club periods");
+  } else if (period.dateFrom && period.dateTo) {
+    const label = period.periodMode === "custom" ? "Custom period" : "Rolling 12 weeks";
+    setText("#posPeriod", `${label}: ${formatDate(parseHapanaDate(period.dateFrom))} to ${formatDate(parseHapanaDate(period.dateTo))}`);
   } else {
-    setText("#posPeriod", "Use Update POS to load the first 12-week period");
+    setText("#posPeriod", "Rolling 12 weeks: use Update POS to load the first period");
   }
   setText("#posSource", state.data.failures?.length
     ? `${state.data.failures.length} club issue(s) need checking`
@@ -188,14 +191,16 @@ async function refreshPosMetrics() {
   button.disabled = true;
   const originalText = button.textContent;
   const club = state.club === "All Clubs" ? "Bankstown" : state.club;
+  const rolling = rollingDateInputs();
+  const isRolling = posDateFrom.value === rolling.dateFrom && posDateTo.value === rolling.dateTo;
 
   try {
-    posRefreshStatus.textContent = `Updating ${club} from Core Hapana...`;
-    const params = new URLSearchParams({
-      club,
-      date_from: toHapanaDate(posDateFrom.value),
-      date_to: toHapanaDate(posDateTo.value)
-    });
+    posRefreshStatus.textContent = `Updating ${club} ${isRolling ? "rolling 12 weeks" : "custom dates"} from Core Hapana...`;
+    const params = new URLSearchParams({ club });
+    if (!isRolling) {
+      params.set("date_from", toHapanaDate(posDateFrom.value));
+      params.set("date_to", toHapanaDate(posDateTo.value));
+    }
     const response = await fetch(`/api/pos-metrics?${params.toString()}`, {
       headers: { "Accept": "application/json" }
     });
@@ -228,6 +233,31 @@ function topProducts(row) {
   return Array.isArray(row.topProducts) ? row.topProducts.slice(0, 3) : [];
 }
 
+function visiblePeriod() {
+  const rows = visibleClubs();
+  const periods = rows
+    .map((row) => ({
+      dateFrom: row.dateFrom || state.data.dateFrom || "",
+      dateTo: row.dateTo || state.data.dateTo || "",
+      periodMode: row.periodMode || state.data.periodMode || "rolling12Weeks"
+    }))
+    .filter((period) => period.dateFrom && period.dateTo);
+
+  if (!periods.length) {
+    return {
+      dateFrom: state.data.dateFrom || "",
+      dateTo: state.data.dateTo || "",
+      periodMode: state.data.periodMode || "rolling12Weeks"
+    };
+  }
+
+  const keys = [...new Set(periods.map((period) =>
+    `${period.dateFrom}|${period.dateTo}|${period.periodMode}`
+  ))];
+
+  return keys.length === 1 ? periods[0] : { dateFrom: "", dateTo: "", periodMode: "mixed" };
+}
+
 function formatProduct(item) {
   if (!item) return "";
   return `${escapeHtml(item.name)} (${number.format(item.quantity)} | ${formatMoney(item.sales)})`;
@@ -246,6 +276,15 @@ function formatInputDate(date) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function rollingDateInputs() {
+  const end = previousReportableThursday(new Date());
+  const start = addDays(end, -83);
+  return {
+    dateFrom: formatInputDate(start),
+    dateTo: formatInputDate(end)
+  };
 }
 
 function parseHapanaDate(value) {

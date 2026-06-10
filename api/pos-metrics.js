@@ -1,7 +1,7 @@
 const { get, put } = require("@vercel/blob");
 const { downloadCoreReportCsv } = require("./core-report.js");
 
-const POS_VERSION = "pos-dashboard-v1-2026-06-10";
+const POS_VERSION = "pos-dashboard-period-v2-2026-06-10";
 const STORAGE_PATH = "pos-metrics.json";
 const TIME_ZONE = "Australia/Sydney";
 
@@ -51,7 +51,12 @@ module.exports = async function handler(request, response) {
           dateFrom: window.dateFrom,
           dateTo: window.dateTo
         });
-        clubs.push(summarisePosCsv(csv, { club }));
+        clubs.push(summarisePosCsv(csv, {
+          club,
+          dateFrom: window.dateFrom,
+          dateTo: window.dateTo,
+          periodMode: window.periodMode
+        }));
       } catch (error) {
         failures.push({ club, error: error.message });
       }
@@ -63,9 +68,7 @@ module.exports = async function handler(request, response) {
 
     const payload = buildPayload({
       clubs: sortClubs(clubs),
-      failures,
-      dateFrom: window.dateFrom,
-      dateTo: window.dateTo
+      failures
     });
 
     const blob = await put(STORAGE_PATH, JSON.stringify(payload, null, 2), {
@@ -105,6 +108,7 @@ async function loadStoredPosMetrics() {
 }
 
 function buildPayload({ clubs, failures = [], dateFrom = "", dateTo = "" }) {
+  const period = sharedPeriod(clubs, dateFrom, dateTo);
   const totals = clubs.reduce((sum, row) => ({
     totalSales: round2(sum.totalSales + (row.totalSales || 0)),
     transactionCount: sum.transactionCount + (row.transactionCount || 0),
@@ -118,15 +122,16 @@ function buildPayload({ clubs, failures = [], dateFrom = "", dateTo = "" }) {
     version: POS_VERSION,
     source: "Hapana Core Net Revenue Detail",
     updated: new Date().toISOString(),
-    dateFrom,
-    dateTo,
+    dateFrom: period.dateFrom,
+    dateTo: period.dateTo,
+    periodMode: period.periodMode,
     totals,
     clubs,
     failures
   };
 }
 
-function summarisePosCsv(csv, { club }) {
+function summarisePosCsv(csv, { club, dateFrom, dateTo, periodMode }) {
   const records = parseDelimited(csv);
   const products = new Map();
   const categoryTotals = {
@@ -169,6 +174,9 @@ function summarisePosCsv(csv, { club }) {
 
   return {
     club,
+    dateFrom,
+    dateTo,
+    periodMode,
     totalSales,
     transactionCount,
     foodAndBeverage: categoryTotals.foodAndBeverage,
@@ -304,19 +312,48 @@ function locationsForRequest(params) {
 function reportWindow(params) {
   const explicitFrom = params.get("date_from");
   const explicitTo = params.get("date_to");
-  if (explicitFrom && explicitTo) return { dateFrom: explicitFrom, dateTo: explicitTo };
+  if (explicitFrom && explicitTo) {
+    const rolling = rollingTwelveWeekWindow();
+    const isRolling = explicitFrom === rolling.dateFrom && explicitTo === rolling.dateTo;
+    return {
+      dateFrom: explicitFrom,
+      dateTo: explicitTo,
+      periodMode: isRolling ? "rolling12Weeks" : "custom"
+    };
+  }
 
+  return rollingTwelveWeekWindow();
+}
+
+function rollingTwelveWeekWindow() {
   const today = sydneyCalendarDate();
   const day = today.getUTCDay();
   const daysSinceThursday = (day - 4 + 7) % 7;
   const latestClosedThursday = addDays(today, -daysSinceThursday);
   const end = addDays(latestClosedThursday, -7);
   const start = addDays(end, -83);
-
   return {
     dateFrom: hapanaDate(start),
-    dateTo: hapanaDate(end)
+    dateTo: hapanaDate(end),
+    periodMode: "rolling12Weeks"
   };
+}
+
+function sharedPeriod(clubs, fallbackFrom, fallbackTo) {
+  const periods = [...new Set(clubs.map((row) =>
+    `${row.dateFrom || fallbackFrom || ""}|${row.dateTo || fallbackTo || ""}|${row.periodMode || "rolling12Weeks"}`
+  ))].filter((value) => value !== "||rolling12Weeks");
+
+  if (periods.length === 1) {
+    const [dateFrom, dateTo, periodMode] = periods[0].split("|");
+    return { dateFrom, dateTo, periodMode };
+  }
+
+  if (!periods.length) {
+    return { dateFrom: fallbackFrom, dateTo: fallbackTo, periodMode: "rolling12Weeks" };
+  }
+
+  return { dateFrom: "", dateTo: "", periodMode: "mixed" };
 }
 
 function sortClubs(clubs) {
