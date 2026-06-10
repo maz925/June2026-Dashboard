@@ -640,6 +640,7 @@ function switchView(view) {
     section.classList.toggle("active", section.id === `${view}View`);
   });
   renderMetrics();
+  logDashboardView();
 }
 
 function initControls() {
@@ -675,6 +676,7 @@ function renderSource() {
 clubFilter.addEventListener("change", (event) => {
   state.club = event.target.value;
   render();
+  logDashboardView();
 });
 
 document.querySelectorAll(".tab").forEach((button) => {
@@ -707,6 +709,15 @@ async function init() {
   initControls();
   renderSource();
   render();
+  window.dashboardAuth?.ready?.then(logDashboardView);
 }
 
 init();
+
+function logDashboardView() {
+  window.dashboardAuth?.logView?.({
+    page: "DD / POS",
+    view: state.view,
+    club: state.club
+  });
+}

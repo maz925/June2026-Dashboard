@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard View Log</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="hero">
+    <div>
+      <p class="eyebrow">UFC GYM Team Dashboard</p>
+      <h1>Dashboard View Log</h1>
+    </div>
+    <div class="hero-meta">
+      <span class="pill">Admin</span>
+      <span>Team dashboard access history</span>
+    </div>
+  </header>
+
+  <main class="shell">
+    <section class="panel">
+      <div class="section-heading">
+        <h2>Recent Views</h2>
+        <p>Enter the view log secret to load the latest dashboard visits.</p>
+      </div>
+      <form id="viewLogForm" class="inline-form">
+        <label>
+          Secret
+          <input id="viewLogSecret" type="password" autocomplete="current-password" required>
+        </label>
+        <button type="submit">Load Views</button>
+      </form>
+      <p id="viewLogStatus" class="note"></p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Page</th>
+              <th>View</th>
+              <th>Club</th>
+            </tr>
+          </thead>
+          <tbody id="viewLogBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="view-log.js"></script>
+</body>
+</html>

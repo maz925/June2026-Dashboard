@@ -36,6 +36,28 @@ body {
   background: linear-gradient(90deg, #171a1f 0%, #2b3037 55%, #8f1022 100%);
 }
 
+.hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 28px clamp(18px, 4vw, 44px);
+  color: #fff;
+  background: linear-gradient(90deg, #171a1f 0%, #2b3037 55%, #8f1022 100%);
+}
+
+.hero .eyebrow {
+  color: rgba(255,255,255,0.76);
+}
+
+.hero-meta {
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+  color: rgba(255,255,255,0.82);
+  text-align: right;
+}
+
 .eyebrow,
 .section-heading p,
 .source,
@@ -106,9 +128,29 @@ h2 {
   font-weight: 800;
 }
 
+.pill {
+  width: max-content;
+  padding: 4px 8px;
+  border-radius: 999px;
+  color: #fff;
+  background: rgba(255,255,255,0.16);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
 main {
   width: min(1180px, calc(100% - 28px));
   margin: 22px auto 44px;
+}
+
+.panel {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 12px 32px rgba(23, 32, 42, 0.05);
 }
 
 .toolbar {
@@ -144,6 +186,63 @@ input[type="date"] {
   border-radius: 6px;
   background: #fff;
   color: var(--ink);
+}
+
+input[type="password"] {
+  min-width: 210px;
+  height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--ink);
+}
+
+.inline-form {
+  display: flex;
+  align-items: end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.auth-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(246, 247, 249, 0.94);
+  backdrop-filter: blur(3px);
+}
+
+.auth-panel {
+  width: min(420px, 100%);
+  display: grid;
+  justify-items: start;
+  gap: 14px;
+  padding: 28px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 24px 70px rgba(23, 32, 42, 0.18);
+}
+
+.auth-kicker,
+.auth-note,
+.auth-error {
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.auth-error {
+  min-height: 1.2em;
+  color: var(--red);
+  font-weight: 700;
+}
+
+.google-sign-in {
+  min-height: 44px;
 }
 
 .tabs {
@@ -595,8 +694,10 @@ tr:last-child td {
 
 @media (max-width: 940px) {
   .toolbar,
+  .hero,
   .range-form,
   .download-form,
+  .inline-form,
   .section-heading,
   .topbar {
     align-items: stretch;
@@ -621,6 +722,11 @@ tr:last-child td {
 
   .top-links {
     justify-content: flex-start;
+  }
+
+  .hero-meta {
+    justify-items: start;
+    text-align: left;
   }
 
   .tabs {

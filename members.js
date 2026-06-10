@@ -308,11 +308,13 @@ function switchView(view) {
   document.querySelectorAll(".view").forEach((section) => {
     section.classList.toggle("active", section.id === `${view}View`);
   });
+  logMemberDashboardView();
 }
 
 clubFilter.addEventListener("change", (event) => {
   state.club = event.target.value;
   render();
+  logMemberDashboardView();
 });
 
 document.querySelectorAll(".tab").forEach((button) => {
@@ -412,6 +414,15 @@ async function init() {
   await loadMemberData();
   initControls();
   render();
+  window.dashboardAuth?.ready?.then(logMemberDashboardView);
 }
 
 init();
+
+function logMemberDashboardView() {
+  window.dashboardAuth?.logView?.({
+    page: "Members",
+    view: state.view,
+    club: state.club
+  });
+}
