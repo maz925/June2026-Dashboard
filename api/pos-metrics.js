@@ -100,7 +100,7 @@ function assertCronAccess(request) {
 }
 
 async function loadStoredPosMetrics() {
-  const result = await get(STORAGE_PATH, { access: "private" }).catch(() => null);
+  const result = await get(STORAGE_PATH, { access: "private", useCache: false }).catch(() => null);
   if (!result || result.statusCode !== 200 || !result.stream) {
     return buildPayload({ clubs: [], failures: [] });
   }
