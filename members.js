@@ -9,7 +9,7 @@ const dateFormat = new Intl.DateTimeFormat("en-AU", {
 });
 
 const state = {
-  club: "All Clubs",
+  clubs: ["All Clubs"],
   view: "overview",
   data: {
     source: "Hapana Core Membership Detail",
@@ -73,27 +73,119 @@ function escapeHtml(value) {
 }
 
 function visibleClubs() {
-  return state.club === "All Clubs"
+  return isAllClubsSelected()
     ? state.data.clubs
-    : state.data.clubs.filter((row) => row.club === state.club);
+    : state.data.clubs.filter((row) => selectedClubNames().includes(row.club));
 }
 
 function visibleTotals() {
   const clubs = visibleClubs();
-  if (state.club === "All Clubs") return state.data.totals;
+  if (isAllClubsSelected()) return state.data.totals;
+  return aggregateClubTotals(clubs);
+}
 
-  const row = clubs[0] || {};
+function isAllClubsSelected() {
+  return state.clubs.includes("All Clubs");
+}
+
+function selectedClubNames() {
+  return isAllClubsSelected() ? [] : state.clubs;
+}
+
+function selectedClubLabel() {
+  return isAllClubsSelected() ? "All Clubs" : state.clubs.join(", ");
+}
+
+function syncClubSelection() {
+  const values = [...clubFilter.selectedOptions].map((option) => option.value);
+  state.clubs = !values.length || values.includes("All Clubs") ? ["All Clubs"] : values;
+  [...clubFilter.options].forEach((option) => {
+    option.selected = state.clubs.includes(option.value);
+  });
+}
+
+function aggregateClubTotals(clubs) {
+  const totals = clubs.reduce((sum, row) => ({
+    activeMembers: sum.activeMembers + (row.activeMembers || 0),
+    standardActiveMembers: sum.standardActiveMembers + standardActive(row),
+    fitnessPassportMembers: sum.fitnessPassportMembers + (row.fitnessPassportMembers || 0),
+    cancellations: sum.cancellations + (row.cancellations || 0),
+    suspensions: sum.suspensions + (row.suspensions || 0),
+    newMemberships: sum.newMemberships + (row.newMemberships || 0),
+    movement: aggregateMovement(sum.movement, row.movement || {}),
+    cancellationForecast: aggregateCancellationForecast(sum.cancellationForecast, row.cancellationForecast || {}),
+    dailyActive: sumDailyActive(sum.dailyActive, row.dailyActive || [])
+  }), {
+    activeMembers: 0,
+    standardActiveMembers: 0,
+    fitnessPassportMembers: 0,
+    cancellations: 0,
+    suspensions: 0,
+    newMemberships: 0,
+    movement: {},
+    cancellationForecast: {},
+    dailyActive: []
+  });
+
   return {
-    activeMembers: row.activeMembers || 0,
-    standardActiveMembers: standardActive(row),
-    fitnessPassportMembers: row.fitnessPassportMembers || 0,
-    cancellations: row.cancellations || 0,
-    suspensions: row.suspensions || 0,
-    newMemberships: row.newMemberships || 0,
-    movement: row.movement || {},
-    cancellationForecast: row.cancellationForecast || {},
-    dailyActive: row.dailyActive || []
+    ...totals,
+    movement: normaliseMovement(totals.movement),
+    cancellationForecast: normaliseCancellationForecast(totals.cancellationForecast)
   };
+}
+
+function aggregateMovement(current, next) {
+  return {
+    previousMonth: addMovementWindow(current.previousMonth, next.previousMonth),
+    currentMonthToDate: addMovementWindow(current.currentMonthToDate, next.currentMonthToDate)
+  };
+}
+
+function addMovementWindow(current = {}, next = {}) {
+  return {
+    label: current.label || next.label || "",
+    newSales: (current.newSales || 0) + (next.newSales || 0),
+    standardNewSales: (current.standardNewSales || 0) + standardNewSales(next),
+    fitnessPassportNewSales: (current.fitnessPassportNewSales || 0) + (next.fitnessPassportNewSales || 0),
+    cancellations: (current.cancellations || 0) + (next.cancellations || 0),
+    suspensions: (current.suspensions || 0) + (next.suspensions || 0)
+  };
+}
+
+function normaliseMovement(movement) {
+  return {
+    previousMonth: movement.previousMonth || {},
+    currentMonthToDate: movement.currentMonthToDate || {}
+  };
+}
+
+function aggregateCancellationForecast(current, next) {
+  return {
+    currentMonth: addCancellationWindow(current.currentMonth, next.currentMonth),
+    nextMonth: addCancellationWindow(current.nextMonth, next.nextMonth)
+  };
+}
+
+function addCancellationWindow(current = {}, next = {}) {
+  return {
+    label: current.label || next.label || "",
+    cancellations: (current.cancellations || 0) + (next.cancellations || 0)
+  };
+}
+
+function normaliseCancellationForecast(forecast) {
+  return {
+    currentMonth: forecast.currentMonth || {},
+    nextMonth: forecast.nextMonth || {}
+  };
+}
+
+function sumDailyActive(current, next) {
+  const byDate = new Map(current.map((point) => [point.date, point.active || 0]));
+  for (const point of next) {
+    byDate.set(point.date, (byDate.get(point.date) || 0) + (point.active || 0));
+  }
+  return [...byDate.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, active]) => ({ date, active }));
 }
 
 async function loadMemberData() {
@@ -116,7 +208,9 @@ async function loadMemberData() {
 
 function initControls() {
   const clubs = ["All Clubs", ...state.data.clubs.map((row) => row.club)].filter(Boolean);
-  clubFilter.innerHTML = clubs.map((club) => `<option>${escapeHtml(club)}</option>`).join("");
+  clubFilter.multiple = true;
+  clubFilter.size = Math.min(5, clubs.length);
+  clubFilter.innerHTML = clubs.map((club) => `<option value="${escapeHtml(club)}"${club === "All Clubs" ? " selected" : ""}>${escapeHtml(club)}</option>`).join("");
 
   const today = new Date();
   const start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
@@ -224,7 +318,7 @@ function renderDailyChart() {
   const container = document.querySelector("#dailyActiveTrend");
   const totals = visibleTotals();
   const points = totals.dailyActive || [];
-  setText("#dailyChartNote", state.club === "All Clubs" ? "All clubs combined." : state.club);
+  setText("#dailyChartNote", isAllClubsSelected() ? "All clubs combined." : selectedClubLabel());
 
   if (!points.length) {
     container.innerHTML = `<p class="trend-empty">No daily active data has been stored yet.</p>`;
@@ -311,8 +405,8 @@ function switchView(view) {
   logMemberDashboardView();
 }
 
-clubFilter.addEventListener("change", (event) => {
-  state.club = event.target.value;
+clubFilter.addEventListener("change", () => {
+  syncClubSelection();
   render();
   logMemberDashboardView();
 });
@@ -423,6 +517,6 @@ function logMemberDashboardView() {
   window.dashboardAuth?.logView?.({
     page: "Members",
     view: state.view,
-    club: state.club
+    club: selectedClubLabel()
   });
 }

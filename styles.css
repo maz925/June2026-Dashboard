@@ -188,6 +188,16 @@ input[type="date"] {
   color: var(--ink);
 }
 
+select[multiple] {
+  height: auto;
+  min-height: 132px;
+  padding: 8px;
+}
+
+select[multiple] option {
+  padding: 5px 8px;
+}
+
 input[type="password"] {
   min-width: 210px;
   height: 42px;

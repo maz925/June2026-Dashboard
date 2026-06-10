@@ -14,7 +14,7 @@ const dateFormat = new Intl.DateTimeFormat("en-AU", {
 });
 
 const state = {
-  club: "All Clubs",
+  clubs: ["All Clubs"],
   data: {
     source: "Hapana Core Net Revenue Detail",
     updated: null,
@@ -54,7 +54,10 @@ async function loadPosData() {
 
 function initControls() {
   const clubs = ["All Clubs", ...new Set([...CLUBS, ...state.data.clubs.map((row) => row.club)])].filter(Boolean);
-  clubFilter.innerHTML = clubs.map((club) => `<option>${escapeHtml(club)}</option>`).join("");
+  clubFilter.multiple = true;
+  clubFilter.size = Math.min(5, clubs.length);
+  clubFilter.innerHTML = clubs.map((club) => `<option value="${escapeHtml(club)}">${escapeHtml(club)}</option>`).join("");
+  applyClubSelection();
 
   const rolling = rollingDateInputs();
   posDateFrom.value = rolling.dateFrom;
@@ -69,15 +72,50 @@ function previousReportableThursday(date) {
 }
 
 function visibleClubs() {
-  return state.club === "All Clubs"
+  return isAllClubsSelected()
     ? state.data.clubs
-    : state.data.clubs.filter((row) => row.club === state.club);
+    : state.data.clubs.filter((row) => selectedClubNames().includes(row.club));
 }
 
 function visibleTotals() {
   const rows = visibleClubs();
-  if (state.club === "All Clubs") return state.data.totals;
-  return rows[0] || { totalSales: 0, transactionCount: 0, foodAndBeverage: 0, merchandise: 0, fees: 0, other: 0 };
+  if (isAllClubsSelected()) return state.data.totals;
+  return aggregatePosTotals(rows);
+}
+
+function isAllClubsSelected() {
+  return state.clubs.includes("All Clubs");
+}
+
+function selectedClubNames() {
+  return isAllClubsSelected() ? [] : state.clubs;
+}
+
+function selectedClubLabel() {
+  return isAllClubsSelected() ? "All Clubs" : state.clubs.join(", ");
+}
+
+function syncClubSelection() {
+  const values = [...clubFilter.selectedOptions].map((option) => option.value);
+  state.clubs = !values.length || values.includes("All Clubs") ? ["All Clubs"] : values;
+  applyClubSelection();
+}
+
+function applyClubSelection() {
+  [...clubFilter.options].forEach((option) => {
+    option.selected = state.clubs.includes(option.value);
+  });
+}
+
+function aggregatePosTotals(rows) {
+  return rows.reduce((sum, row) => ({
+    totalSales: round2(sum.totalSales + (row.totalSales || 0)),
+    transactionCount: sum.transactionCount + (row.transactionCount || 0),
+    foodAndBeverage: round2(sum.foodAndBeverage + (row.foodAndBeverage || 0)),
+    merchandise: round2(sum.merchandise + (row.merchandise || 0)),
+    fees: round2(sum.fees + (row.fees || 0)),
+    other: round2(sum.other + (row.other || 0))
+  }), { totalSales: 0, transactionCount: 0, foodAndBeverage: 0, merchandise: 0, fees: 0, other: 0 });
 }
 
 function renderSource() {
@@ -175,8 +213,8 @@ function render() {
   renderDetail();
 }
 
-clubFilter.addEventListener("change", (event) => {
-  state.club = event.target.value;
+clubFilter.addEventListener("change", () => {
+  syncClubSelection();
   render();
   logPosDashboardView();
 });
@@ -190,37 +228,41 @@ async function refreshPosMetrics() {
   const button = posRefreshForm.querySelector("button");
   button.disabled = true;
   const originalText = button.textContent;
-  const club = state.club === "All Clubs" ? "Bankstown" : state.club;
+  const clubs = isAllClubsSelected() ? CLUBS : selectedClubNames();
   const rolling = rollingDateInputs();
   const isRolling = posDateFrom.value === rolling.dateFrom && posDateTo.value === rolling.dateTo;
 
   try {
-    posRefreshStatus.textContent = `Updating ${club} ${isRolling ? "rolling 12 weeks" : "custom dates"} from Core Hapana...`;
-    const params = new URLSearchParams({ club });
-    if (!isRolling) {
-      params.set("date_from", toHapanaDate(posDateFrom.value));
-      params.set("date_to", toHapanaDate(posDateTo.value));
+    const allFailures = [];
+    for (const club of clubs) {
+      posRefreshStatus.textContent = `Updating ${club} ${isRolling ? "rolling 12 weeks" : "custom dates"} from Core Hapana...`;
+      const params = new URLSearchParams({ club });
+      if (!isRolling) {
+        params.set("date_from", toHapanaDate(posDateFrom.value));
+        params.set("date_to", toHapanaDate(posDateTo.value));
+      }
+      const response = await fetch(`/api/pos-metrics?${params.toString()}`, {
+        headers: { "Accept": "application/json" }
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok && response.status !== 207) {
+        throw new Error(errorText(body.error || body || `HTTP ${response.status}`));
+      }
+      if (Array.isArray(body.failures)) {
+        allFailures.push(...body.failures.map((item) => `${item.club || club}: ${errorText(item.error)}`));
+      }
     }
-    const response = await fetch(`/api/pos-metrics?${params.toString()}`, {
-      headers: { "Accept": "application/json" }
-    });
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok && response.status !== 207) {
-      throw new Error(errorText(body.error || body || `HTTP ${response.status}`));
-    }
-    const failures = Array.isArray(body.failures)
-      ? body.failures.map((item) => `${item.club || "Club"}: ${errorText(item.error)}`)
-      : [];
 
     posRefreshStatus.textContent = "POS data updated. Refreshing dashboard...";
     await loadPosData();
+    const selected = [...state.clubs];
     initControls();
-    state.club = club;
-    clubFilter.value = club;
+    state.clubs = selected;
+    applyClubSelection();
     render();
-    posRefreshStatus.textContent = failures.length
-      ? `Finished with issues: ${failures.join(" | ")}`
-      : `${club} POS data updated.`;
+    posRefreshStatus.textContent = allFailures.length
+      ? `Finished with issues: ${allFailures.join(" | ")}`
+      : `${selectedClubLabel()} POS data updated.`;
   } catch (error) {
     posRefreshStatus.textContent = errorText(error);
   } finally {
@@ -303,6 +345,10 @@ function addDays(date, days) {
   return next;
 }
 
+function round2(value) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
 function setText(selector, value) {
   document.querySelector(selector).textContent = value;
 }
@@ -339,7 +385,7 @@ function logPosDashboardView() {
   window.dashboardAuth?.logView?.({
     page: "POS",
     view: "overview",
-    club: state.club
+    club: selectedClubLabel()
   });
 }
 

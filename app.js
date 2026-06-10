@@ -23,7 +23,7 @@ const dateFormat = new Intl.DateTimeFormat("en-AU", {
 });
 
 const state = {
-  club: "All Clubs",
+  clubs: ["All Clubs"],
   view: "overview",
   connection: "workbook",
   customRevenueWeekEnding: null
@@ -153,7 +153,28 @@ function rowsForWeeks(weekEndings) {
 }
 
 function visible(rows) {
-  return state.club === "All Clubs" ? rows : rows.filter((row) => row.club === state.club);
+  const clubs = selectedClubNames();
+  return isAllClubsSelected() ? rows : rows.filter((row) => clubs.includes(row.club));
+}
+
+function isAllClubsSelected() {
+  return state.clubs.includes("All Clubs");
+}
+
+function selectedClubNames() {
+  return isAllClubsSelected() ? [] : state.clubs;
+}
+
+function selectedClubLabel() {
+  return isAllClubsSelected() ? "All Clubs" : state.clubs.join(", ");
+}
+
+function syncClubSelection() {
+  const values = [...clubFilter.selectedOptions].map((option) => option.value);
+  state.clubs = !values.length || values.includes("All Clubs") ? ["All Clubs"] : values;
+  [...clubFilter.options].forEach((option) => {
+    option.selected = state.clubs.includes(option.value);
+  });
 }
 
 function hasValue(value) {
@@ -312,11 +333,12 @@ function mergeRollingRows(existingRows, liveRows) {
 async function updateRevenueRange() {
   const button = revenueRangeForm.querySelector("button");
   const originalText = button.textContent;
-  const club = state.club;
-  if (club === "All Clubs") {
-    revenueRangeStatus.textContent = "Select one club first, then update the custom revenue range.";
+  const selected = selectedClubNames();
+  if (selected.length !== 1) {
+    revenueRangeStatus.textContent = "Select exactly one club first, then update the custom revenue range.";
     return;
   }
+  const club = selected[0];
 
   button.disabled = true;
   button.textContent = "Updating...";
@@ -530,10 +552,11 @@ function renderRevenueTrend() {
   }
 
   const clubNames = [...new Set(allRows.map((row) => row.club))].sort((a, b) => a.localeCompare(b));
-  const visibleClubs = state.club === "All Clubs" ? clubNames : clubNames.filter((club) => club === state.club);
-  const chartClubs = ["All Clubs", ...visibleClubs];
+  const visibleClubNames = isAllClubsSelected() ? clubNames : clubNames.filter((club) => selectedClubNames().includes(club));
+  const chartClubs = [isAllClubsSelected() ? "All Clubs" : "Selected Clubs", ...visibleClubNames];
   const colors = {
     "All Clubs": "#17202a",
+    "Selected Clubs": "#17202a",
     "Bankstown": "#c8112e",
     "Wetherill Park": "#1f7a4d",
     "580G": "#2f6fd6",
@@ -545,7 +568,11 @@ function renderRevenueTrend() {
     color: colors[club] || "#667085",
     values: weeks.map((weekEnding) => {
       const weekRows = allRows.filter((row) => row.weekEnding === weekEnding);
-      const rows = club === "All Clubs" ? weekRows : weekRows.filter((row) => row.club === club);
+      const rows = club === "All Clubs"
+        ? weekRows
+        : club === "Selected Clubs"
+          ? weekRows.filter((row) => selectedClubNames().includes(row.club))
+          : weekRows.filter((row) => row.club === club);
       return rows.reduce((sum, row) => sum + totalRevenue(row), 0);
     })
   })).filter((item) => item.club === "All Clubs" || item.values.some((value) => value > 0));
@@ -649,7 +676,9 @@ function initControls() {
     ...data.targets.map((row) => row.club),
     ...data.dynamicTargets.map((row) => row.club)
   ])].filter(Boolean);
-  clubFilter.innerHTML = clubs.map((club) => `<option>${club}</option>`).join("");
+  clubFilter.multiple = true;
+  clubFilter.size = Math.min(5, clubs.length);
+  clubFilter.innerHTML = clubs.map((club) => `<option value="${escapeHtml(club)}"${club === "All Clubs" ? " selected" : ""}>${escapeHtml(club)}</option>`).join("");
 
   const today = new Date();
   const sevenDaysAgo = addDays(today, -6);
@@ -673,8 +702,8 @@ function renderSource() {
   setText("#updatedAt", `Prepared ${data.updated} | ${APP_VERSION}`);
 }
 
-clubFilter.addEventListener("change", (event) => {
-  state.club = event.target.value;
+clubFilter.addEventListener("change", () => {
+  syncClubSelection();
   render();
   logDashboardView();
 });
@@ -718,6 +747,6 @@ function logDashboardView() {
   window.dashboardAuth?.logView?.({
     page: "DD / POS",
     view: state.view,
-    club: state.club
+    club: selectedClubLabel()
   });
 }
