@@ -1,4 +1,4 @@
-const MEMBER_APP_VERSION = "member-dashboard-suspended-status-pkg-v22-2026-06-09";
+const MEMBER_APP_VERSION = "member-dashboard-nmm-v23-2026-06-10";
 const REFRESH_CLUBS = ["Bankstown", "Wetherill Park", "580G", "Woolooware"];
 
 const number = new Intl.NumberFormat("en-AU", { maximumFractionDigits: 0 });
@@ -213,6 +213,7 @@ function renderSummary() {
         <span><span class="mini-label">New</span><strong class="mini-value">${number.format(row.newMemberships || 0)}</strong></span>
         <span><span class="mini-label">Current Cancelled</span><strong class="mini-value negative">${number.format(currentMonthCancellations(row))}</strong></span>
         <span><span class="mini-label">Current Suspended</span><strong class="mini-value">${number.format(row.suspensions || 0)}</strong></span>
+        <span><span class="mini-label">NMM</span><strong class="mini-value ${movementClass(netMemberMovement(row))}">${formatSigned(netMemberMovement(row))}</strong></span>
       </div>
       ${row.warning ? `<p class="note">${escapeHtml(row.warning)}</p>` : ""}
     </article>
@@ -282,6 +283,7 @@ function renderDetail() {
       <td>${number.format(currentMonthCancellations(row))}</td>
       <td>${number.format(row.suspensions || 0)}</td>
       <td>${number.format(row.newMemberships || 0)}</td>
+      <td class="${movementClass(netMemberMovement(row))}">${formatSigned(netMemberMovement(row))}</td>
       <td>${row.fallback ? "Fallback" : number.format(row.rowCount || 0)}</td>
     </tr>
   `).join("");
@@ -371,6 +373,27 @@ function standardNewSales(row) {
 
 function currentMonthCancellations(row) {
   return row.cancellationForecast?.currentMonth?.cancellations || 0;
+}
+
+function currentStandardNewMembers(row) {
+  const current = row.movement?.currentMonthToDate;
+  if (current) return standardNewSales(current);
+  return row.standardNewMemberships ?? row.standardNewSales ?? (row.newMemberships || 0);
+}
+
+function netMemberMovement(row) {
+  return currentStandardNewMembers(row) - currentMonthCancellations(row);
+}
+
+function movementClass(value) {
+  if (value < 0) return "negative";
+  if (value > 0) return "positive";
+  return "muted-value";
+}
+
+function formatSigned(value) {
+  if (value > 0) return `+${number.format(value)}`;
+  return number.format(value || 0);
 }
 
 
