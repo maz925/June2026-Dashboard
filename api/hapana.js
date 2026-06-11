@@ -1,7 +1,7 @@
 const DEFAULT_HAPANA_BASE_URL = "https://api.hapana.com/v2";
 const { get } = require("@vercel/blob");
 
-const HAPANA_PROXY_VERSION = "hapana-stored-weekly-first-v2-2026-06-04";
+const HAPANA_PROXY_VERSION = "hapana-weekly-only-v3-2026-06-11";
 
 const CLUB_SITE_IDS = {
   "Wetherill Park": "UWNnS2tUM3VDeUN0YTlaWlBDM3lqdz09",
@@ -35,11 +35,12 @@ module.exports = async function handler(request, response) {
 
     const storedRevenue = await loadStoredWeeklyRevenue();
     if (storedRevenue?.rolling?.length) {
+      const weeklyRows = storedRevenue.rolling.filter(isCompleteRevenueWeek);
       response.status(200).json({
         version: HAPANA_PROXY_VERSION,
         source: storedRevenue.source || "Hapana Core Net Revenue Detail",
         updated: storedRevenue.updated,
-        rolling: storedRevenue.rolling,
+        rolling: weeklyRows,
         weekEnding: storedRevenue.weekEnding,
         dateFrom: storedRevenue.dateFrom,
         dateTo: storedRevenue.dateTo,
@@ -72,9 +73,27 @@ async function listSites() {
 }
 
 async function loadStoredWeeklyRevenue() {
-  const result = await get("weekly-revenue.json", { access: "private" }).catch(() => null);
+  const result = await get("weekly-revenue.json", { access: "private", useCache: false }).catch(() => null);
   if (!result || result.statusCode !== 200) return null;
   return new Response(result.stream).json();
+}
+
+function isCompleteRevenueWeek(row) {
+  if (!row?.dateFrom || !row?.dateTo) return false;
+  const start = parseHapanaDate(row.dateFrom);
+  const end = parseHapanaDate(row.dateTo);
+  return start.getDay() === 5 && end.getDay() === 4 && addDays(start, 6).toDateString() === end.toDateString();
+}
+
+function parseHapanaDate(value) {
+  const [day, month, year] = String(value || "").split("/").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function addDays(date, days) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
 }
 
 async function hapanaGet(path) {
