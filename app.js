@@ -147,9 +147,9 @@ function reportableRows() {
   return data.rolling.filter((row) => row.weekEnding === active.weekEnding);
 }
 
-function rowsForWeeks(weekEndings) {
+function rowsForWeeks(weekEndings, { completeOnly = false } = {}) {
   const weekSet = new Set(weekEndings);
-  return data.rolling.filter((row) => weekSet.has(row.weekEnding));
+  return data.rolling.filter((row) => weekSet.has(row.weekEnding) && (!completeOnly || isCompleteRevenueWeek(row)));
 }
 
 function visible(rows) {
@@ -444,8 +444,8 @@ function renderMetrics() {
 function metricRows() {
   if (state.view === "latest") return reportableRows();
   if (state.customRevenueWeekEnding && state.view === "overview") return rowsForWeeks([state.customRevenueWeekEnding]);
-  if (state.view === "overview") return rowsForWeeks(availableWeekEndings().slice(0, 4));
-  if (state.view === "history") return rowsForWeeks(availableWeekEndings().slice(0, 12));
+  if (state.view === "overview") return rowsForWeeks(availableWeekEndings().slice(0, 4), { completeOnly: true });
+  if (state.view === "history") return rowsForWeeks(availableWeekEndings().slice(0, 12), { completeOnly: true });
   return [];
 }
 
@@ -461,7 +461,7 @@ function renderSummary() {
   const container = document.querySelector("#summaryGrid");
   const overviewRows = state.customRevenueWeekEnding
     ? rowsForWeeks([state.customRevenueWeekEnding])
-    : rowsForWeeks(availableWeekEndings().slice(0, 4));
+    : rowsForWeeks(availableWeekEndings().slice(0, 4), { completeOnly: true });
   const rowsByClub = visible(overviewRows).reduce((groups, row) => {
     groups[row.club] ||= [];
     groups[row.club].push(row);
@@ -639,7 +639,7 @@ function renderRevenueTrend() {
 
 function renderHistory() {
   renderRevenueTrend();
-  const rows = visible(rowsForWeeks(availableWeekEndings().slice(0, 12))).sort((a, b) => b.weekEnding.localeCompare(a.weekEnding) || a.club.localeCompare(b.club));
+  const rows = visible(rowsForWeeks(availableWeekEndings().slice(0, 12), { completeOnly: true })).sort((a, b) => b.weekEnding.localeCompare(a.weekEnding) || a.club.localeCompare(b.club));
   const body = document.querySelector("#historyBody");
   body.innerHTML = rows.map((row) => {
     const cycle = rowPeriod(row);
