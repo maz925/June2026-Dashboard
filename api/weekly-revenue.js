@@ -157,8 +157,8 @@ function reportWindow(params) {
   const today = sydneyCalendarDate();
   const day = today.getUTCDay();
   const daysSinceThursday = (day - 4 + 7) % 7;
-  const latestClosedThursday = addDays(today, -daysSinceThursday);
-  const end = addDays(latestClosedThursday, -7);
+  const latestAvailableThursday = addDays(today, -daysSinceThursday);
+  const end = addDays(latestAvailableThursday, -4);
   const start = addDays(end, -6);
 
   return {

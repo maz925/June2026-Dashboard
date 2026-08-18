@@ -164,7 +164,7 @@ function buildRollingRows(payments, clubSiteIds, env) {
     const createdAt = payment.createdAt || payment.created_at || payment.created || payment.date;
     if (!createdAt) continue;
 
-    const weekEnding = weekEndingThursday(createdAt);
+    const weekEnding = weekEndingSunday(createdAt);
     const revenueType = classifyRevenue(payment);
     const key = `${weekEnding}|${club}`;
 
@@ -236,11 +236,11 @@ function classifyRevenue(payment) {
   return "pos";
 }
 
-function weekEndingThursday(value) {
+function weekEndingSunday(value) {
   const date = new Date(value);
   const day = date.getUTCDay();
-  const daysUntilThursday = (4 - day + 7) % 7;
-  date.setUTCDate(date.getUTCDate() + daysUntilThursday);
+  const daysUntilSunday = (7 - day) % 7;
+  date.setUTCDate(date.getUTCDate() + daysUntilSunday);
   return date.toISOString().slice(0, 10);
 }
 

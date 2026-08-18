@@ -2,7 +2,7 @@ window.HAPANA_PROXY_URL ||= window.location.hostname === "localhost" || window.l
   ? ""
   : "/api/hapana";
 
-const APP_VERSION = "dashboard-live-hapana-weeks-v9-2026-06-10";
+const APP_VERSION = "dashboard-monday-sunday-cycle-v1-2026-08-18";
 
 let data = window.TRACKER_DATA;
 
@@ -85,8 +85,8 @@ function parseHapanaDate(value) {
 function reportingCycle(weekEnding) {
   const end = parseDate(weekEnding);
   const start = addDays(end, -6);
-  const availableFrom = addDays(end, 7);
-  const availableUntil = addDays(end, 13);
+  const availableFrom = addDays(end, 4);
+  const availableUntil = addDays(end, 10);
 
   return {
     period: `${formatDate(start)} to ${formatDate(end)}`,
@@ -98,7 +98,7 @@ function reportingCycle(weekEnding) {
 }
 
 function rowPeriod(row) {
-  if (row?.dateFrom && row?.dateTo) {
+  if (row?.dateFrom && row?.dateTo && isCompleteRevenueWeek(row)) {
     return {
       period: `${formatDate(parseHapanaDate(row.dateFrom))} to ${formatDate(parseHapanaDate(row.dateTo))}`,
       availableFromText: "Live from Hapana",
@@ -110,7 +110,13 @@ function rowPeriod(row) {
 }
 
 function activeReportableWeek() {
-  const weekEnding = state.customRevenueWeekEnding || availableWeekEndings()[0] || data.rolling[0]?.weekEnding;
+  const weekEnding = state.customRevenueWeekEnding || availableWeekEndings()[0];
+  if (!weekEnding) {
+    const reportingWindow = defaultReportingWindow();
+    const defaultWeekEnding = formatInputDate(reportingWindow.end);
+    return { weekEnding: defaultWeekEnding, cycle: reportingCycle(defaultWeekEnding) };
+  }
+
   const row = data.rolling.find((item) => item.weekEnding === weekEnding && hasRevenue(item)) ||
     data.rolling.find((item) => item.weekEnding === weekEnding);
   return { weekEnding, cycle: rowPeriod(row) };
@@ -136,10 +142,20 @@ function availableWeekEndings() {
 }
 
 function isCompleteRevenueWeek(row) {
-  if (!row?.dateFrom || !row?.dateTo) return false;
+  if (!row?.dateFrom || !row?.dateTo) return parseDate(row?.weekEnding).getDay() === 0;
   const start = parseHapanaDate(row.dateFrom);
   const end = parseHapanaDate(row.dateTo);
-  return start.getDay() === 5 && end.getDay() === 4 && addDays(start, 6).toDateString() === end.toDateString();
+  return start.getDay() === 1 && end.getDay() === 0 && addDays(start, 6).toDateString() === end.toDateString();
+}
+
+function defaultReportingWindow() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const daysSinceThursday = (today.getDay() - 4 + 7) % 7;
+  const latestAvailableThursday = addDays(today, -daysSinceThursday);
+  const end = addDays(latestAvailableThursday, -4);
+  const start = addDays(end, -6);
+  return { start, end };
 }
 
 function reportableRows() {
@@ -604,7 +620,7 @@ function renderRevenueTrend() {
   `).join("");
 
   const xLabels = weeks.map((weekEnding, index) => `
-    <text class="trend-label" x="${x(index)}" y="${height - 20}" text-anchor="middle">${formatDate(parseDate(weekEnding)).replace("Thu, ", "")}</text>
+    <text class="trend-label" x="${x(index)}" y="${height - 20}" text-anchor="middle">${formatDate(parseDate(weekEnding)).replace(/^[A-Za-z]{3},\s*/, "")}</text>
   `).join("");
 
   const paths = series.map((item) => {
@@ -690,12 +706,12 @@ function initControls() {
   clubFilter.innerHTML = clubs.map((club) => `<option value="${escapeHtml(club)}"${club === "All Clubs" ? " selected" : ""}>${escapeHtml(club)}</option>`).join("");
 
   const today = new Date();
-  const sevenDaysAgo = addDays(today, -6);
   const fourWeeksAgo = addDays(today, -27);
   revenueDateFrom.value = formatInputDate(fourWeeksAgo);
   revenueDateTo.value = formatInputDate(today);
-  reportDateFrom.value = formatInputDate(sevenDaysAgo);
-  reportDateTo.value = formatInputDate(today);
+  const reportingWindow = defaultReportingWindow();
+  reportDateFrom.value = formatInputDate(reportingWindow.start);
+  reportDateTo.value = formatInputDate(reportingWindow.end);
 }
 
 function renderSource() {
