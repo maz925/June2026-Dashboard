@@ -1,7 +1,7 @@
 const { get, put } = require("@vercel/blob");
 const { downloadCoreReportCsv } = require("./core-report.js");
 
-const WEEKLY_REVENUE_VERSION = "weekly-revenue-club-refresh-v4-2026-06-09";
+const WEEKLY_REVENUE_VERSION = "weekly-revenue-backfill-v5-2026-08-18";
 const STORAGE_PATH = "weekly-revenue.json";
 const TIME_ZONE = "Australia/Sydney";
 
@@ -31,26 +31,28 @@ module.exports = async function handler(request, response) {
     assertCronAccess(request);
 
     const url = new URL(request.url, `https://${request.headers.host || "localhost"}`);
-    const window = reportWindow(url.searchParams);
+    const windows = reportWindows(url.searchParams);
     const targetLocations = locationsForRequest(url.searchParams);
     const rows = [];
     const failures = [];
 
-    for (const { club, location } of targetLocations) {
-      try {
-        const csv = await downloadCoreReportCsv({
-          locationName: location,
-          dateFrom: window.dateFrom,
-          dateTo: window.dateTo
-        });
-        rows.push(summariseCsv(csv, {
-          club,
-          weekEnding: window.weekEnding,
-          dateFrom: window.dateFrom,
-          dateTo: window.dateTo
-        }));
-      } catch (error) {
-        failures.push({ club, error: error.message });
+    for (const window of windows) {
+      for (const { club, location } of targetLocations) {
+        try {
+          const csv = await downloadCoreReportCsv({
+            locationName: location,
+            dateFrom: window.dateFrom,
+            dateTo: window.dateTo
+          });
+          rows.push(summariseCsv(csv, {
+            club,
+            weekEnding: window.weekEnding,
+            dateFrom: window.dateFrom,
+            dateTo: window.dateTo
+          }));
+        } catch (error) {
+          failures.push({ club, weekEnding: window.weekEnding, error: error.message });
+        }
       }
     }
 
@@ -64,9 +66,9 @@ module.exports = async function handler(request, response) {
       version: WEEKLY_REVENUE_VERSION,
       source: "Hapana Core Net Revenue Detail",
       updated: new Date().toISOString(),
-      weekEnding: window.weekEnding,
-      dateFrom: window.dateFrom,
-      dateTo: window.dateTo,
+      weekEnding: windows[0].weekEnding,
+      dateFrom: windows[0].dateFrom,
+      dateTo: windows[0].dateTo,
       rolling,
       failures
     };
@@ -141,6 +143,30 @@ function mergeRollingRows(existingRows, newRows) {
 
 function rollingRowKey(row) {
   return `${row.weekEnding}|${row.dateFrom || ""}|${row.dateTo || ""}|${row.club}`;
+}
+
+function reportWindows(params) {
+  const first = reportWindow(params);
+  const explicitRange = params.get("date_from") && params.get("date_to");
+  const count = explicitRange ? 1 : weekCount(params.get("weeks"));
+  return Array.from({ length: count }, (_, index) => shiftWindow(first, index * -7));
+}
+
+function weekCount(value) {
+  const count = Number(value || 1);
+  if (!Number.isFinite(count)) return 1;
+  return Math.max(1, Math.min(12, Math.floor(count)));
+}
+
+function shiftWindow(window, days) {
+  if (!days) return window;
+  const start = addDays(parseHapanaDate(window.dateFrom), days);
+  const end = addDays(parseHapanaDate(window.dateTo), days);
+  return {
+    dateFrom: hapanaDate(start),
+    dateTo: hapanaDate(end),
+    weekEnding: end.toISOString().slice(0, 10)
+  };
 }
 
 function reportWindow(params) {
