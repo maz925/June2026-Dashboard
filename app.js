@@ -2,7 +2,7 @@ window.HAPANA_PROXY_URL ||= window.location.hostname === "localhost" || window.l
   ? ""
   : "/api/hapana";
 
-const APP_VERSION = "dashboard-monday-sunday-cycle-v1-2026-08-18";
+const APP_VERSION = "dashboard-live-revenue-weeks-v2-2026-08-27";
 
 let data = window.TRACKER_DATA;
 
