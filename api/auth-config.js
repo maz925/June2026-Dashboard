@@ -18,6 +18,14 @@ module.exports = async function handler(request, response) {
     enabled: Boolean(clientId),
     provider: "google",
     clientId,
-    allowedDomain: process.env.GOOGLE_ALLOWED_DOMAIN || ""
+    allowedDomain: process.env.GOOGLE_ALLOWED_DOMAIN || "",
+    origin: requestOrigin(request)
   });
 };
+
+function requestOrigin(request) {
+  const host = request.headers["x-forwarded-host"] || request.headers.host || "";
+  if (!host) return "";
+  const proto = request.headers["x-forwarded-proto"] || (host.includes("localhost") ? "http" : "https");
+  return `${String(proto).split(",")[0]}://${String(host).split(",")[0]}`;
+}

@@ -82,7 +82,10 @@ function isCompleteRevenueWeek(row) {
   if (!row?.dateFrom || !row?.dateTo) return false;
   const start = parseHapanaDate(row.dateFrom);
   const end = parseHapanaDate(row.dateTo);
-  return start.getDay() === 5 && end.getDay() === 4 && addDays(start, 6).toDateString() === end.toDateString();
+  const isSevenDayWindow = addDays(start, 6).toDateString() === end.toDateString();
+  const isMondaySunday = start.getDay() === 1 && end.getDay() === 0;
+  const isFridayThursday = start.getDay() === 5 && end.getDay() === 4;
+  return isSevenDayWindow && (isMondaySunday || isFridayThursday);
 }
 
 function parseHapanaDate(value) {

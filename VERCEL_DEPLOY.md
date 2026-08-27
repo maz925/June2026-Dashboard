@@ -34,7 +34,45 @@ HAPANA_CORE_PASSWORD
 
 These are the login credentials for `https://core.hapana.com`. Do not add them to `config.js`, `index.html`, or any GitHub file.
 
-## 3. Deploy
+For Google sign-in and view logging, add:
+
+```text
+GOOGLE_CLIENT_ID
+GOOGLE_ALLOWED_DOMAIN
+VIEW_LOG_SECRET
+BLOB_READ_WRITE_TOKEN
+```
+
+`GOOGLE_ALLOWED_DOMAIN` is optional. Set it only if sign-in should be restricted to one Google Workspace domain.
+
+## 3. Register the Google OAuth Origin
+
+If Google shows `Error 400: origin_mismatch`, the deployed dashboard URL is missing from the OAuth client.
+
+1. Open the Google Cloud Console project that owns `GOOGLE_CLIENT_ID`.
+2. Go to **APIs & Services > Credentials**.
+3. Open the OAuth 2.0 Client ID used by this dashboard.
+4. Under **Authorised JavaScript origins**, add the dashboard origin exactly, with no trailing slash or path.
+
+Examples:
+
+```text
+https://your-dashboard.vercel.app
+https://dashboard.yourdomain.com
+http://localhost:4173
+```
+
+After saving, redeploy or refresh the dashboard and try Google sign-in again.
+
+You can confirm the origin the app is using by opening:
+
+```text
+https://your-dashboard.vercel.app/api/auth-config
+```
+
+The `origin` value returned there is the value that must be listed in **Authorised JavaScript origins**.
+
+## 4. Deploy
 
 Click **Deploy**.
 

@@ -106,6 +106,16 @@ function rowPeriod(row) {
       isLive: true
     };
   }
+  if (isLegacyWorkbookRevenueWeek(row)) {
+    const end = parseDate(row.weekEnding);
+    const start = addDays(end, -6);
+    return {
+      period: `${formatDate(start)} to ${formatDate(end)}`,
+      availableFromText: "Workbook row",
+      availableWindow: "Stored workbook data is available now",
+      isLive: true
+    };
+  }
   return reportingCycle(row?.weekEnding);
 }
 
@@ -142,10 +152,22 @@ function availableWeekEndings() {
 }
 
 function isCompleteRevenueWeek(row) {
+  if (isLegacyWorkbookRevenueWeek(row)) return true;
   if (!row?.dateFrom || !row?.dateTo) return parseDate(row?.weekEnding).getDay() === 0;
   const start = parseHapanaDate(row.dateFrom);
   const end = parseHapanaDate(row.dateTo);
-  return start.getDay() === 1 && end.getDay() === 0 && addDays(start, 6).toDateString() === end.toDateString();
+  const isSevenDayWindow = addDays(start, 6).toDateString() === end.toDateString();
+  const isMondaySunday = start.getDay() === 1 && end.getDay() === 0;
+  const isFridayThursday = start.getDay() === 5 && end.getDay() === 4;
+  return isSevenDayWindow && (isMondaySunday || isFridayThursday);
+}
+
+function isLegacyWorkbookRevenueWeek(row) {
+  return Boolean(row?.weekEnding) &&
+    !row.dateFrom &&
+    !row.dateTo &&
+    hasRevenue(row) &&
+    parseDate(row.weekEnding).getDay() === 4;
 }
 
 function defaultReportingWindow() {
