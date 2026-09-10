@@ -1,0 +1,14 @@
+{
+  "name": "ufcgym-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "engines": {
+    "node": "22.x"
+  },
+  "scripts": {
+    "test:api": "node -e \"require('./api/core-report.js'); require('./api/fitness-metrics.js'); console.log('api modules loaded')\""
+  },
+  "dependencies": {
+    "@vercel/blob": "^2.4.0"
+  }
+}
