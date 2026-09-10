@@ -21,7 +21,6 @@ const state = {
   view: "overview"
 };
 
-const clubs = ["All Clubs", ...new Set(data.summary.map((row) => row.club))];
 const clubFilter = document.querySelector("#clubFilter");
 
 function uniqueLatestRows() {
@@ -334,6 +333,12 @@ function switchView(view) {
 }
 
 function initControls() {
+  const clubs = ["All Clubs", ...new Set([
+    ...(data.summary || []).map((row) => row.club),
+    ...(data.rolling || []).map((row) => row.club),
+    ...(data.targets || []).map((row) => row.club),
+    ...(data.dynamicTargets || []).map((row) => row.club)
+  ])].filter(Boolean);
   clubFilter.innerHTML = clubs.map((club) => `<option>${club}</option>`).join("");
 }
 
