@@ -3,9 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="hapana-proxy-url" content="https://ufcgym-hapana-proxy.maz-01f.workers.dev">
   <title>UFC GYM DD / POS Staff Viewer</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=2026-08-18-reporting-cycle">
 </head>
 <body>
   <header class="topbar">
@@ -16,8 +15,11 @@
     <div class="source">
       <nav class="top-links" aria-label="Dashboard links">
         <a aria-current="page" href="/">DD / POS</a>
+        <a href="/members.html">Members</a>
+        <a href="/pos.html">POS</a>
         <a href="/fitness.html">Fitness</a>
       </nav>
+      <span id="connectionStatus"></span>
       <span id="sourceName"></span>
       <span id="updatedAt"></span>
     </div>
@@ -26,15 +28,33 @@
   <main>
     <section class="toolbar" aria-label="Dashboard filters">
       <label class="filter">
-        <span>Club</span>
+        <span>Clubs</span>
         <select id="clubFilter"></select>
       </label>
       <div class="tabs" role="tablist" aria-label="Views">
-        <button class="tab active" type="button" data-view="overview">Overview</button>
-        <button class="tab" type="button" data-view="latest">Latest Week</button>
-        <button class="tab" type="button" data-view="targets">Targets</button>
-        <button class="tab" type="button" data-view="history">12 Weeks</button>
+        <button class="tab active" type="button" data-view="overview" title="Shows DD, POS, POS percentage and red/green status across the latest 4 Hapana revenue weeks." aria-label="4 Week Overview: shows DD, POS, POS percentage and red/green status across the latest 4 Hapana revenue weeks.">4 Week Overview</button>
+        <button class="tab" type="button" data-view="latest" title="Shows the most recent complete Hapana revenue week by club." aria-label="Latest Week: shows the most recent complete Hapana revenue week by club.">Latest Week</button>
+        <button class="tab" type="button" data-view="targets" title="Shows baseline DD targets, rolling averages, and realistic/stretch POS targets by club." aria-label="Targets: shows baseline DD targets, rolling averages, and realistic/stretch POS targets by club.">Targets</button>
+        <button class="tab" type="button" data-view="history" title="Shows the last 12 complete Hapana revenue weeks with trend chart and weekly club detail." aria-label="12 Weeks: shows the last 12 complete Hapana revenue weeks with trend chart and weekly club detail.">12 Weeks</button>
       </div>
+      <div class="toolbar-actions">
+        <button class="customise-button" id="customiseRevenueButton" type="button" aria-expanded="false">Customise</button>
+      </div>
+    </section>
+
+    <section class="custom-range-panel" id="customRevenuePanel" aria-label="Custom revenue date range" hidden>
+      <form id="revenueRangeForm" class="range-form">
+        <label class="filter">
+          <span>From</span>
+          <input id="revenueDateFrom" type="date" required>
+        </label>
+        <label class="filter">
+          <span>To</span>
+          <input id="revenueDateTo" type="date" required>
+        </label>
+        <button class="download-button" type="submit">Update Revenue</button>
+      </form>
+      <p class="form-status" id="revenueRangeStatus"></p>
     </section>
 
     <section class="metrics" aria-label="Key totals">
@@ -67,6 +87,38 @@
       </div>
     </section>
 
+    <section class="status-legend" aria-label="Status legend">
+      <span><span class="status green">GREEN</span> DD target met and POS percentage target met.</span>
+      <span><span class="status red">RED</span> DD target or POS percentage target missed.</span>
+    </section>
+
+    <section class="report-downloader" aria-label="Hapana report downloader">
+      <div class="section-heading">
+        <h2>Hapana Report Download</h2>
+        <p>Net Revenue Detail CSV from Core Hapana.</p>
+      </div>
+      <form id="reportDownloadForm" class="download-form">
+        <label class="filter">
+          <span>Location</span>
+          <select id="reportLocation">
+            <option value="UFC GYM Bankstown">UFC GYM Bankstown</option>
+            <option value="UFC GYM Wetherill Park">UFC GYM Wetherill Park</option>
+            <option value="580G">UFC GYM 580 George</option>
+            <option value="UFC GYM Woolooware">UFC GYM Woolooware</option>
+          </select>
+        </label>
+        <label class="filter">
+          <span>From</span>
+          <input id="reportDateFrom" type="date" required>
+        </label>
+        <label class="filter">
+          <span>To</span>
+          <input id="reportDateTo" type="date" required>
+        </label>
+        <button class="download-button" type="submit">Download CSV</button>
+      </form>
+    </section>
+
     <section class="view active" id="overviewView">
       <div class="section-heading">
         <h2>Club Summary</h2>
@@ -78,7 +130,7 @@
     <section class="view" id="latestView">
       <div class="section-heading">
         <h2>Latest Reportable Week</h2>
-        <p>DD and POS revenue is reported Friday to Thursday, then available the following Thursday.</p>
+        <p>DD and POS revenue is reported Monday to Sunday, then available the following Thursday.</p>
       </div>
       <div class="latest-grid" id="latestGrid"></div>
     </section>
@@ -96,6 +148,13 @@
         <h2>Rolling 12 Weeks</h2>
         <p>Detailed DD and POS performance for the last 12 revenue weeks.</p>
       </div>
+      <section class="trend-card" aria-label="12 week total revenue trend">
+        <div class="trend-head">
+          <h3>Total Revenue Trend</h3>
+          <p>All Clubs total and club-level weekly revenue.</p>
+        </div>
+        <div class="trend-chart" id="revenueTrend"></div>
+      </section>
       <div class="table-wrap">
         <table>
           <thead>
@@ -116,7 +175,9 @@
     </section>
   </main>
 
-  <script src="tracker-data.js"></script>
-  <script src="app.js"></script>
+  <script src="tracker-data.js?v=2026-08-18-reporting-cycle"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="auth.js"></script>
+  <script src="app.js?v=2026-08-27-live-revenue-weeks"></script>
 </body>
 </html>

@@ -1,3 +1,9 @@
+window.HAPANA_PROXY_URL ||= window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+  ? ""
+  : "/api/hapana";
+
+const APP_VERSION = "dashboard-live-revenue-weeks-v2-2026-08-27";
+
 let data = window.TRACKER_DATA;
 
 const money = new Intl.NumberFormat("en-AU", {
@@ -17,11 +23,23 @@ const dateFormat = new Intl.DateTimeFormat("en-AU", {
 });
 
 const state = {
-  club: "All Clubs",
-  view: "overview"
+  clubs: ["All Clubs"],
+  view: "overview",
+  connection: "workbook",
+  customRevenueWeekEnding: null
 };
 
 const clubFilter = document.querySelector("#clubFilter");
+const reportDownloadForm = document.querySelector("#reportDownloadForm");
+const reportLocation = document.querySelector("#reportLocation");
+const reportDateFrom = document.querySelector("#reportDateFrom");
+const reportDateTo = document.querySelector("#reportDateTo");
+const customiseRevenueButton = document.querySelector("#customiseRevenueButton");
+const customRevenuePanel = document.querySelector("#customRevenuePanel");
+const revenueRangeForm = document.querySelector("#revenueRangeForm");
+const revenueDateFrom = document.querySelector("#revenueDateFrom");
+const revenueDateTo = document.querySelector("#revenueDateTo");
+const revenueRangeStatus = document.querySelector("#revenueRangeStatus");
 
 function uniqueLatestRows() {
   const seen = new Set();
@@ -47,11 +65,28 @@ function formatDate(date) {
   return dateFormat.format(date);
 }
 
+function formatInputDate(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function toHapanaDate(value) {
+  const [year, month, day] = value.split("-");
+  return `${day}/${month}/${year}`;
+}
+
+function parseHapanaDate(value) {
+  const [day, month, year] = value.split("/").map(Number);
+  return new Date(year, month - 1, day);
+}
+
 function reportingCycle(weekEnding) {
   const end = parseDate(weekEnding);
   const start = addDays(end, -6);
-  const availableFrom = addDays(end, 7);
-  const availableUntil = addDays(end, 13);
+  const availableFrom = addDays(end, 4);
+  const availableUntil = addDays(end, 10);
 
   return {
     period: `${formatDate(start)} to ${formatDate(end)}`,
@@ -62,9 +97,39 @@ function reportingCycle(weekEnding) {
   };
 }
 
+function rowPeriod(row) {
+  if (row?.dateFrom && row?.dateTo && isCompleteRevenueWeek(row)) {
+    return {
+      period: `${formatDate(parseHapanaDate(row.dateFrom))} to ${formatDate(parseHapanaDate(row.dateTo))}`,
+      availableFromText: "Live from Hapana",
+      availableWindow: "Live Hapana data is available now",
+      isLive: true
+    };
+  }
+  if (isLegacyWorkbookRevenueWeek(row)) {
+    const end = parseDate(row.weekEnding);
+    const start = addDays(end, -6);
+    return {
+      period: `${formatDate(start)} to ${formatDate(end)}`,
+      availableFromText: "Workbook row",
+      availableWindow: "Stored workbook data is available now",
+      isLive: true
+    };
+  }
+  return reportingCycle(row?.weekEnding);
+}
+
 function activeReportableWeek() {
-  const weeks = availableWeekEndings().map((weekEnding) => ({ weekEnding, cycle: reportingCycle(weekEnding) }));
-  return weeks[0] || { weekEnding: data.rolling[0]?.weekEnding, cycle: reportingCycle(data.rolling[0]?.weekEnding) };
+  const weekEnding = state.customRevenueWeekEnding || availableWeekEndings()[0];
+  if (!weekEnding) {
+    const reportingWindow = defaultReportingWindow();
+    const defaultWeekEnding = formatInputDate(reportingWindow.end);
+    return { weekEnding: defaultWeekEnding, cycle: reportingCycle(defaultWeekEnding) };
+  }
+
+  const row = data.rolling.find((item) => item.weekEnding === weekEnding && hasRevenue(item)) ||
+    data.rolling.find((item) => item.weekEnding === weekEnding);
+  return { weekEnding, cycle: rowPeriod(row) };
 }
 
 function distinctWeekEndings() {
@@ -74,13 +139,45 @@ function distinctWeekEndings() {
 function reportableWeekEndings() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  return distinctWeekEndings().filter((weekEnding) => reportingCycle(weekEnding).availableFrom <= today);
+  return distinctWeekEndings().filter((weekEnding) =>
+    data.rolling.some((row) => row.weekEnding === weekEnding && hasRevenue(row) && isCompleteRevenueWeek(row)) ||
+    reportingCycle(weekEnding).availableFrom <= today
+  );
 }
 
 function availableWeekEndings() {
   return reportableWeekEndings().filter((weekEnding) =>
-    data.rolling.some((row) => row.weekEnding === weekEnding && hasRevenue(row))
+    data.rolling.some((row) => row.weekEnding === weekEnding && hasRevenue(row) && isCompleteRevenueWeek(row))
   );
+}
+
+function isCompleteRevenueWeek(row) {
+  if (isLegacyWorkbookRevenueWeek(row)) return true;
+  if (!row?.dateFrom || !row?.dateTo) return parseDate(row?.weekEnding).getDay() === 0;
+  const start = parseHapanaDate(row.dateFrom);
+  const end = parseHapanaDate(row.dateTo);
+  const isSevenDayWindow = addDays(start, 6).toDateString() === end.toDateString();
+  const isMondaySunday = start.getDay() === 1 && end.getDay() === 0;
+  const isFridayThursday = start.getDay() === 5 && end.getDay() === 4;
+  return isSevenDayWindow && (isMondaySunday || isFridayThursday);
+}
+
+function isLegacyWorkbookRevenueWeek(row) {
+  return Boolean(row?.weekEnding) &&
+    !row.dateFrom &&
+    !row.dateTo &&
+    hasRevenue(row) &&
+    parseDate(row.weekEnding).getDay() === 4;
+}
+
+function defaultReportingWindow() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const daysSinceThursday = (today.getDay() - 4 + 7) % 7;
+  const latestAvailableThursday = addDays(today, -daysSinceThursday);
+  const end = addDays(latestAvailableThursday, -4);
+  const start = addDays(end, -6);
+  return { start, end };
 }
 
 function reportableRows() {
@@ -88,13 +185,34 @@ function reportableRows() {
   return data.rolling.filter((row) => row.weekEnding === active.weekEnding);
 }
 
-function rowsForWeeks(weekEndings) {
+function rowsForWeeks(weekEndings, { completeOnly = false } = {}) {
   const weekSet = new Set(weekEndings);
-  return data.rolling.filter((row) => weekSet.has(row.weekEnding));
+  return data.rolling.filter((row) => weekSet.has(row.weekEnding) && (!completeOnly || isCompleteRevenueWeek(row)));
 }
 
 function visible(rows) {
-  return state.club === "All Clubs" ? rows : rows.filter((row) => row.club === state.club);
+  const clubs = selectedClubNames();
+  return isAllClubsSelected() ? rows : rows.filter((row) => clubs.includes(row.club));
+}
+
+function isAllClubsSelected() {
+  return state.clubs.includes("All Clubs");
+}
+
+function selectedClubNames() {
+  return isAllClubsSelected() ? [] : state.clubs;
+}
+
+function selectedClubLabel() {
+  return isAllClubsSelected() ? "All Clubs" : state.clubs.join(", ");
+}
+
+function syncClubSelection() {
+  const values = [...clubFilter.selectedOptions].map((option) => option.value);
+  state.clubs = !values.length || values.includes("All Clubs") ? ["All Clubs"] : values;
+  [...clubFilter.options].forEach((option) => {
+    option.selected = state.clubs.includes(option.value);
+  });
 }
 
 function hasValue(value) {
@@ -109,6 +227,10 @@ function formatMoney(value) {
 function formatPercent(value) {
   if (!hasValue(value)) return "Not entered";
   return `${number.format(value || 0)}%`;
+}
+
+function totalRevenue(row) {
+  return (row.ddActual || 0) + (row.posActual || 0);
 }
 
 function gapClass(value) {
@@ -128,6 +250,42 @@ function hasRevenue(row) {
   return hasValue(row.ddActual) || hasValue(row.posActual);
 }
 
+function enrichRollingRows(rows) {
+  const fixedByClub = Object.fromEntries(data.targets.map((row) => [row.club, row]));
+  const dynamicByClub = Object.fromEntries(data.dynamicTargets.map((row) => [row.club, row]));
+
+  return rows.map((row) => {
+    const fixed = fixedByClub[row.club] || {};
+    const dynamic = dynamicByClub[row.club] || {};
+    const ddTarget = dynamic.realisticDDTarget || fixed.ddTarget || row.ddTarget || null;
+    const targetPercent = dynamic.realisticPOSPercentTarget || fixed.posTargetPercent || row.targetPercent || null;
+    const ddGap = hasValue(row.ddActual) && hasValue(ddTarget) ? round2(row.ddActual - ddTarget) : row.ddGap;
+    const posPercent = hasValue(row.posPercent)
+      ? row.posPercent
+      : row.ddActual ? round1((row.posActual / row.ddActual) * 100) : null;
+    const status = hasRevenue(row) && hasValue(ddGap) && hasValue(targetPercent)
+      ? ddGap >= 0 && posPercent >= targetPercent ? "GREEN" : "RED"
+      : row.status;
+
+    return {
+      ...row,
+      ddTarget,
+      ddGap,
+      posPercent,
+      targetPercent,
+      status
+    };
+  });
+}
+
+function round2(value) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function round1(value) {
+  return Math.round((value + Number.EPSILON) * 10) / 10;
+}
+
 function formatGap(row) {
   return hasRevenue(row) ? formatMoney(row.ddGap) : "Pending";
 }
@@ -140,27 +298,159 @@ function setText(selector, value) {
   document.querySelector(selector).textContent = value;
 }
 
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  }[char]));
+}
+
+function errorText(error) {
+  if (!error) return "Unknown error";
+  if (typeof error === "string") return error;
+  if (error.message) return error.message;
+  try {
+    return JSON.stringify(error);
+  } catch (jsonError) {
+    return String(error);
+  }
+}
+
 async function loadLiveData() {
-  const proxyUrl = document.querySelector('meta[name="hapana-proxy-url"]')?.content || "";
-  if (!proxyUrl) return;
+  const proxyUrl = window.HAPANA_PROXY_URL || "";
+  if (!proxyUrl) {
+    state.connection = "workbook";
+    return;
+  }
 
   try {
     const response = await fetch(proxyUrl, { headers: { "Accept": "application/json" } });
     if (!response.ok) throw new Error(`Hapana proxy returned ${response.status}`);
 
     const liveData = await response.json();
-    if (!Array.isArray(liveData.rolling) || liveData.rolling.length === 0) {
-      throw new Error("Hapana proxy returned no rolling rows");
+    if (!Array.isArray(liveData.rolling)) {
+      throw new Error("Hapana proxy returned invalid rolling rows");
+    }
+
+    if (liveData.rolling.length === 0) {
+      state.connection = Array.isArray(liveData.sites) && liveData.sites.length ? "liveMetadata" : "fallback";
+      data = {
+        ...data,
+        ...liveData,
+        rolling: []
+      };
+      return;
     }
 
     data = {
       ...data,
       ...liveData,
+      rolling: liveData.rolling,
       targets: liveData.targets || data.targets,
       dynamicTargets: liveData.dynamicTargets || data.dynamicTargets
     };
+    data.rolling = enrichRollingRows(data.rolling);
+    state.connection = "live";
   } catch (error) {
+    state.connection = "fallback";
     console.warn("Using workbook data because Hapana live data could not load.", error);
+  }
+}
+
+function mergeRollingRows(existingRows, liveRows) {
+  const rowsByKey = new Map(existingRows.map((row) => [rollingRowKey(row), row]));
+  for (const row of liveRows) {
+    rowsByKey.set(rollingRowKey(row), row);
+  }
+  return [...rowsByKey.values()].sort((a, b) =>
+    a.weekEnding.localeCompare(b.weekEnding) ||
+    String(a.dateFrom || "").localeCompare(String(b.dateFrom || "")) ||
+    String(a.dateTo || "").localeCompare(String(b.dateTo || "")) ||
+    a.club.localeCompare(b.club)
+  );
+}
+
+function rollingRowKey(row) {
+  return `${row.weekEnding}|${row.dateFrom || ""}|${row.dateTo || ""}|${row.club}`;
+}
+
+async function updateRevenueRange() {
+  const button = revenueRangeForm.querySelector("button");
+  const originalText = button.textContent;
+  const selected = selectedClubNames();
+  if (selected.length !== 1) {
+    revenueRangeStatus.textContent = "Select exactly one club first, then update the custom revenue range.";
+    return;
+  }
+  const club = selected[0];
+
+  button.disabled = true;
+  button.textContent = "Updating...";
+  const dateFrom = toHapanaDate(revenueDateFrom.value);
+  const dateTo = toHapanaDate(revenueDateTo.value);
+  revenueRangeStatus.textContent = `Updating ${club} from Core Hapana...`;
+
+  try {
+    const params = new URLSearchParams({ club, date_from: dateFrom, date_to: dateTo });
+    const body = await fetchRevenueRange(params);
+    const refreshedRows = (body.rolling || []).filter((item) =>
+      item.club === club && item.dateFrom === dateFrom && item.dateTo === dateTo
+    );
+
+    if (!refreshedRows.length) {
+      throw new Error(`No revenue row was returned for ${club} in that date range.`);
+    }
+
+    data = {
+      ...data,
+      ...body,
+      rolling: enrichRollingRows(mergeRollingRows(data.rolling, refreshedRows)),
+      targets: body.targets || data.targets,
+      dynamicTargets: body.dynamicTargets || data.dynamicTargets
+    };
+    state.connection = "live";
+    state.customRevenueWeekEnding = body.weekEnding || null;
+    renderSource();
+    render();
+
+    const failures = Array.isArray(body.failures)
+      ? body.failures.map((item) => `${item.club || club}: ${errorText(item.error)}`)
+      : [];
+    revenueRangeStatus.textContent = failures.length
+      ? `Finished with issues: ${failures.join(" | ")}`
+      : `${club} revenue data updated.`;
+  } catch (error) {
+    revenueRangeStatus.textContent = errorText(error);
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
+  }
+}
+
+async function fetchRevenueRange(params) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 295000);
+
+  try {
+    const response = await fetch(`/api/weekly-revenue?${params.toString()}`, {
+      headers: { "Accept": "application/json" },
+      signal: controller.signal
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok && response.status !== 207) {
+      throw new Error(errorText(body.error || body || `HTTP ${response.status}`));
+    }
+    return body;
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      throw new Error("Core Hapana took too long for one club. Try a shorter date range.");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
@@ -191,20 +481,26 @@ function renderMetrics() {
 
 function metricRows() {
   if (state.view === "latest") return reportableRows();
-  if (state.view === "overview") return rowsForWeeks(availableWeekEndings().slice(0, 4));
-  if (state.view === "history") return rowsForWeeks(distinctWeekEndings().slice(0, 12));
+  if (state.customRevenueWeekEnding && state.view === "overview") return rowsForWeeks([state.customRevenueWeekEnding]);
+  if (state.view === "overview") return rowsForWeeks(availableWeekEndings().slice(0, 4), { completeOnly: true });
+  if (state.view === "history") return rowsForWeeks(availableWeekEndings().slice(0, 12), { completeOnly: true });
   return [];
 }
 
 function renderCycle() {
   const active = activeReportableWeek();
   setText("#cyclePeriod", active.cycle.period);
-  setText("#cycleWindow", `${active.cycle.availableWindow}, then the next cycle takes over`);
+  setText("#cycleWindow", active.cycle.isLive
+    ? active.cycle.availableWindow
+    : `${active.cycle.availableWindow}, then the next cycle takes over`);
 }
 
 function renderSummary() {
   const container = document.querySelector("#summaryGrid");
-  const rowsByClub = visible(rowsForWeeks(availableWeekEndings().slice(0, 4))).reduce((groups, row) => {
+  const overviewRows = state.customRevenueWeekEnding
+    ? rowsForWeeks([state.customRevenueWeekEnding])
+    : rowsForWeeks(availableWeekEndings().slice(0, 4), { completeOnly: true });
+  const rowsByClub = visible(overviewRows).reduce((groups, row) => {
     groups[row.club] ||= [];
     groups[row.club].push(row);
     return groups;
@@ -243,7 +539,7 @@ function renderLatest() {
   container.innerHTML = latest.map((row) => {
     const target = dynamicByClub[row.club];
     const progress = Math.max(0, Math.min(100, row.targetPercent ? (row.posPercent / row.targetPercent) * 100 : 0));
-    const cycle = reportingCycle(row.weekEnding);
+    const cycle = rowPeriod(row);
     return `
       <article class="latest-card">
         <div class="card-head">
@@ -292,11 +588,99 @@ function renderTargets() {
   }).join("");
 }
 
+function renderRevenueTrend() {
+  const container = document.querySelector("#revenueTrend");
+  const weeks = availableWeekEndings().slice(0, 12).reverse();
+  const allRows = rowsForWeeks(weeks).filter((row) => hasRevenue(row) && isCompleteRevenueWeek(row));
+
+  if (!weeks.length || !allRows.length) {
+    container.innerHTML = `<p class="trend-empty">No revenue data available for the selected period.</p>`;
+    return;
+  }
+
+  const clubNames = [...new Set(allRows.map((row) => row.club))].sort((a, b) => a.localeCompare(b));
+  const visibleClubNames = isAllClubsSelected() ? clubNames : clubNames.filter((club) => selectedClubNames().includes(club));
+  const chartClubs = [isAllClubsSelected() ? "All Clubs" : "Selected Clubs", ...visibleClubNames];
+  const colors = {
+    "All Clubs": "#17202a",
+    "Selected Clubs": "#17202a",
+    "Bankstown": "#c8112e",
+    "Wetherill Park": "#1f7a4d",
+    "580G": "#2f6fd6",
+    "Woolooware": "#a15c00"
+  };
+
+  const series = chartClubs.map((club) => ({
+    club,
+    color: colors[club] || "#667085",
+    values: weeks.map((weekEnding) => {
+      const weekRows = allRows.filter((row) => row.weekEnding === weekEnding);
+      const rows = club === "All Clubs"
+        ? weekRows
+        : club === "Selected Clubs"
+          ? weekRows.filter((row) => selectedClubNames().includes(row.club))
+          : weekRows.filter((row) => row.club === club);
+      return rows.reduce((sum, row) => sum + totalRevenue(row), 0);
+    })
+  })).filter((item) => item.club === "All Clubs" || item.values.some((value) => value > 0));
+
+  const width = 980;
+  const height = 320;
+  const pad = { top: 22, right: 28, bottom: 54, left: 82 };
+  const plotWidth = width - pad.left - pad.right;
+  const plotHeight = height - pad.top - pad.bottom;
+  const maxValue = Math.max(1, ...series.flatMap((item) => item.values));
+  const yStep = 5000;
+  const yMax = Math.max(yStep, Math.ceil(maxValue / yStep) * yStep);
+  const x = (index) => pad.left + (weeks.length === 1 ? plotWidth / 2 : (index / (weeks.length - 1)) * plotWidth);
+  const y = (value) => pad.top + plotHeight - (value / yMax) * plotHeight;
+  const yTicks = Array.from({ length: Math.floor(yMax / yStep) + 1 }, (_, index) => index * yStep);
+
+  const grid = yTicks.map((tick) => `
+    <line class="trend-grid" x1="${pad.left}" y1="${y(tick)}" x2="${width - pad.right}" y2="${y(tick)}"></line>
+    <text class="trend-label" x="${pad.left - 12}" y="${y(tick) + 4}" text-anchor="end">${formatMoney(tick)}</text>
+  `).join("");
+
+  const xLabels = weeks.map((weekEnding, index) => `
+    <text class="trend-label" x="${x(index)}" y="${height - 20}" text-anchor="middle">${formatDate(parseDate(weekEnding)).replace(/^[A-Za-z]{3},\s*/, "")}</text>
+  `).join("");
+
+  const paths = series.map((item) => {
+    const points = item.values.map((value, index) => `${x(index)},${y(value)}`);
+    const path = points.map((point, index) => `${index === 0 ? "M" : "L"} ${point}`).join(" ");
+    const dots = item.values.map((value, index) => `
+      <circle class="trend-dot" cx="${x(index)}" cy="${y(value)}" r="${item.club === "All Clubs" ? 4.5 : 3.6}" fill="${item.color}">
+        <title>${escapeHtml(item.club)} ${formatDate(parseDate(weeks[index]))}: ${formatMoney(value)}</title>
+      </circle>
+    `).join("");
+    return `
+      <path class="trend-line" d="${path}" stroke="${item.color}"></path>
+      ${dots}
+    `;
+  }).join("");
+
+  const legend = series.map((item) => `
+    <span><i class="trend-swatch" style="background:${item.color}"></i>${escapeHtml(item.club)}</span>
+  `).join("");
+
+  container.innerHTML = `
+    <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="12 week total revenue line graph">
+      ${grid}
+      <line class="trend-axis" x1="${pad.left}" y1="${height - pad.bottom}" x2="${width - pad.right}" y2="${height - pad.bottom}"></line>
+      <line class="trend-axis" x1="${pad.left}" y1="${pad.top}" x2="${pad.left}" y2="${height - pad.bottom}"></line>
+      ${xLabels}
+      ${paths}
+    </svg>
+    <div class="trend-legend">${legend}</div>
+  `;
+}
+
 function renderHistory() {
-  const rows = visible(rowsForWeeks(distinctWeekEndings().slice(0, 12))).sort((a, b) => b.weekEnding.localeCompare(a.weekEnding) || a.club.localeCompare(b.club));
+  renderRevenueTrend();
+  const rows = visible(rowsForWeeks(availableWeekEndings().slice(0, 12), { completeOnly: true })).sort((a, b) => b.weekEnding.localeCompare(a.weekEnding) || a.club.localeCompare(b.club));
   const body = document.querySelector("#historyBody");
   body.innerHTML = rows.map((row) => {
-    const cycle = reportingCycle(row.weekEnding);
+    const cycle = rowPeriod(row);
     return `
       <tr>
         <td>${cycle.period}</td>
@@ -330,33 +714,86 @@ function switchView(view) {
     section.classList.toggle("active", section.id === `${view}View`);
   });
   renderMetrics();
+  logDashboardView();
 }
 
 function initControls() {
   const clubs = ["All Clubs", ...new Set([
-    ...(data.summary || []).map((row) => row.club),
-    ...(data.rolling || []).map((row) => row.club),
-    ...(data.targets || []).map((row) => row.club),
-    ...(data.dynamicTargets || []).map((row) => row.club)
+    ...data.rolling.map((row) => row.club),
+    ...data.targets.map((row) => row.club),
+    ...data.dynamicTargets.map((row) => row.club)
   ])].filter(Boolean);
-  clubFilter.innerHTML = clubs.map((club) => `<option>${club}</option>`).join("");
+  clubFilter.multiple = true;
+  clubFilter.size = Math.min(5, clubs.length);
+  clubFilter.innerHTML = clubs.map((club) => `<option value="${escapeHtml(club)}"${club === "All Clubs" ? " selected" : ""}>${escapeHtml(club)}</option>`).join("");
+
+  const today = new Date();
+  const fourWeeksAgo = addDays(today, -27);
+  revenueDateFrom.value = formatInputDate(fourWeeksAgo);
+  revenueDateTo.value = formatInputDate(today);
+  const reportingWindow = defaultReportingWindow();
+  reportDateFrom.value = formatInputDate(reportingWindow.start);
+  reportDateTo.value = formatInputDate(reportingWindow.end);
 }
 
-clubFilter.addEventListener("change", (event) => {
-  state.club = event.target.value;
+function renderSource() {
+  const status = {
+    live: "Live Hapana data",
+    liveMetadata: "Hapana connected, workbook revenue",
+    fallback: "Workbook fallback",
+    workbook: "Workbook data"
+  }[state.connection];
+
+  setText("#connectionStatus", status);
+  setText("#sourceName", data.source);
+  setText("#updatedAt", `Prepared ${data.updated} | ${APP_VERSION}`);
+}
+
+clubFilter.addEventListener("change", () => {
+  syncClubSelection();
   render();
+  logDashboardView();
 });
 
 document.querySelectorAll(".tab").forEach((button) => {
   button.addEventListener("click", () => switchView(button.dataset.view));
 });
 
+customiseRevenueButton.addEventListener("click", () => {
+  const shouldOpen = customRevenuePanel.hidden;
+  customRevenuePanel.hidden = !shouldOpen;
+  customiseRevenueButton.setAttribute("aria-expanded", String(shouldOpen));
+});
+
+revenueRangeForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  updateRevenueRange();
+});
+
+reportDownloadForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const params = new URLSearchParams({
+    location: reportLocation.value,
+    date_from: toHapanaDate(reportDateFrom.value),
+    date_to: toHapanaDate(reportDateTo.value)
+  });
+  window.open(`/api/core-report?${params.toString()}`, "_blank", "noopener");
+});
+
 async function init() {
   await loadLiveData();
   initControls();
-  setText("#sourceName", data.source);
-  setText("#updatedAt", `Prepared ${data.updated}`);
+  renderSource();
   render();
+  window.dashboardAuth?.ready?.then(logDashboardView);
 }
 
 init();
+
+function logDashboardView() {
+  window.dashboardAuth?.logView?.({
+    page: "DD / POS",
+    view: state.view,
+    club: selectedClubLabel()
+  });
+}

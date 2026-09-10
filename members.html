@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>UFC GYM Member Dashboard</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">UFC GYM Team Dashboard</p>
+      <h1>Member Dashboard</h1>
+    </div>
+    <div class="source">
+      <nav class="top-links" aria-label="Dashboard links">
+        <a href="/">DD / POS</a>
+        <a aria-current="page" href="/members.html">Members</a>
+        <a href="/pos.html">POS</a>
+        <a href="/fitness.html">Fitness</a>
+      </nav>
+      <span id="connectionStatus"></span>
+      <span id="sourceName"></span>
+      <span id="updatedAt"></span>
+    </div>
+  </header>
+
+  <main>
+    <section class="toolbar" aria-label="Dashboard filters">
+      <label class="filter">
+        <span>Clubs</span>
+        <select id="clubFilter"></select>
+      </label>
+      <div class="tabs" role="tablist" aria-label="Views">
+        <button class="tab active" type="button" data-view="overview" title="Shows active members, Fitness Passport split, new sales, cancellations, suspensions and NMM by club." aria-label="Overview: shows active members, Fitness Passport split, new sales, cancellations, suspensions and NMM by club.">Overview</button>
+        <button class="tab" type="button" data-view="daily" title="Shows the daily active member trend for the selected period and club." aria-label="Daily Active: shows the daily active member trend for the selected period and club.">Daily Active</button>
+        <button class="tab" type="button" data-view="detail" title="Shows the club-level member table with active mix, cancellations, suspensions, new memberships and NMM." aria-label="Club Detail: shows the club-level member table with active mix, cancellations, suspensions, new memberships and NMM.">Club Detail</button>
+      </div>
+    </section>
+
+    <section class="metrics" aria-label="Member totals">
+      <article>
+        <span>Total Active</span>
+        <strong id="activeMembers"></strong>
+      </article>
+      <article>
+        <span>Standard Active</span>
+        <strong id="standardActiveMembers"></strong>
+      </article>
+      <article>
+        <span>Fitness Passport</span>
+        <strong id="fitnessPassportMembers"></strong>
+      </article>
+      <article>
+        <span>Cancellations</span>
+        <strong id="cancellations"></strong>
+      </article>
+      <article>
+        <span>Suspensions</span>
+        <strong id="suspensions"></strong>
+      </article>
+    </section>
+
+    <section class="cycle-panel" aria-label="Member reporting period">
+      <div>
+        <span class="mini-label">Membership Detail period</span>
+        <strong id="memberPeriod"></strong>
+      </div>
+      <div>
+        <span class="mini-label">Data source</span>
+        <strong id="memberSource"></strong>
+      </div>
+    </section>
+
+    <section class="movement-panel" aria-label="Member movement windows">
+      <article>
+        <span class="mini-label" id="previousMovementLabel">Previous Month</span>
+        <div class="movement-grid">
+          <span><span class="mini-label">Total New</span><strong id="previousNewSales"></strong></span>
+          <span><span class="mini-label">Standard New</span><strong id="previousStandardNewSales"></strong></span>
+          <span><span class="mini-label">FP New</span><strong id="previousFitnessPassportNewSales"></strong></span>
+          <span><span class="mini-label">Cancellations</span><strong id="previousCancellations" class="negative"></strong></span>
+          <span><span class="mini-label">Suspensions</span><strong id="previousSuspensions"></strong></span>
+        </div>
+      </article>
+      <article>
+        <span class="mini-label" id="currentMovementLabel">Current MTD</span>
+        <div class="movement-grid">
+          <span><span class="mini-label">Total New</span><strong id="currentNewSales"></strong></span>
+          <span><span class="mini-label">Standard New</span><strong id="currentStandardNewSales"></strong></span>
+          <span><span class="mini-label">FP New</span><strong id="currentFitnessPassportNewSales"></strong></span>
+          <span><span class="mini-label">Cancellations</span><strong id="currentCancellations" class="negative"></strong></span>
+          <span><span class="mini-label">Suspensions</span><strong id="currentSuspensions"></strong></span>
+        </div>
+      </article>
+    </section>
+
+    <section class="cancellation-panel" aria-label="Cancellation forecast">
+      <article>
+        <span class="mini-label" id="currentCancellationLabel">Current Month Cancellations</span>
+        <strong id="currentMonthCancellations"></strong>
+      </article>
+      <article>
+        <span class="mini-label" id="nextCancellationLabel">Next Month Cancellations</span>
+        <strong id="nextMonthCancellations"></strong>
+      </article>
+    </section>
+
+    <section class="report-downloader" aria-label="Membership report tools">
+      <div class="section-heading">
+        <h2>Member Refresh</h2>
+        <p>Updates active member counts from Core Hapana.</p>
+      </div>
+      <form id="memberRefreshForm" class="download-form">
+        <label class="filter">
+          <span>From</span>
+          <input id="memberDateFrom" type="date" required>
+        </label>
+        <label class="filter">
+          <span>To</span>
+          <input id="memberDateTo" type="date" required>
+        </label>
+        <button class="download-button" type="submit">Update Members</button>
+      </form>
+      <p class="form-status" id="memberRefreshStatus" role="status"></p>
+    </section>
+
+    <section class="view active" id="overviewView">
+      <div class="section-heading">
+        <h2>Club Summary</h2>
+        <p>Current active mix by club.</p>
+      </div>
+      <div class="summary-grid" id="memberSummaryGrid"></div>
+    </section>
+
+    <section class="view" id="dailyView">
+      <div class="section-heading">
+        <h2>Total Active Daily</h2>
+        <p>Daily active member count for the selected month.</p>
+      </div>
+      <section class="trend-card" aria-label="Daily active members chart">
+        <div class="trend-head">
+          <h3>Active Member Trend</h3>
+          <p id="dailyChartNote"></p>
+        </div>
+        <div class="trend-chart" id="dailyActiveTrend"></div>
+      </section>
+    </section>
+
+    <section class="view" id="detailView">
+      <div class="section-heading">
+        <h2>Club Detail</h2>
+        <p>Active mix, current cancellations, current suspensions and new memberships by club.</p>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Club</th>
+              <th>Total Active</th>
+              <th>Standard Active</th>
+              <th>Fitness Passport</th>
+              <th>Current Cancellations</th>
+              <th>Current Suspensions</th>
+              <th>New Memberships</th>
+              <th>NMM</th>
+              <th>Rows Read</th>
+            </tr>
+          </thead>
+          <tbody id="memberDetailBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="auth.js"></script>
+  <script src="members.js"></script>
+</body>
+</html>
