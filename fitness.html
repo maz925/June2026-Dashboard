@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>UFC GYM Fitness Dashboard</title>
+  <link rel="stylesheet" href="styles.css?v=2026-09-10-fitness">
+</head>
+<body class="fitness-theme">
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">UFC GYM Team Dashboard</p>
+      <h1>Fitness Dashboard</h1>
+    </div>
+    <div class="source">
+      <nav class="top-links" aria-label="Dashboard links">
+        <a href="/">DD / POS</a>
+        <a href="/members.html">Members</a>
+        <a href="/pos.html">POS</a>
+        <a aria-current="page" href="/fitness.html">Fitness</a>
+      </nav>
+      <span id="connectionStatus">Planning model</span>
+      <span id="sourceName">Fitness department KPI tracker</span>
+      <span id="updatedAt"></span>
+    </div>
+  </header>
+
+  <main>
+    <section class="toolbar" aria-label="Dashboard filters">
+      <label class="filter">
+        <span>Clubs</span>
+        <select id="clubFilter"></select>
+      </label>
+      <label class="filter">
+        <span>Period</span>
+        <select id="periodFilter"></select>
+      </label>
+      <div class="tabs" role="tablist" aria-label="Views">
+        <button class="tab active" type="button" data-view="scorecard">Scorecard</button>
+        <button class="tab" type="button" data-view="participation">Participation</button>
+        <button class="tab" type="button" data-view="ptRevenue">PT Revenue</button>
+        <button class="tab" type="button" data-view="rentCosts">Rent & Costs</button>
+        <button class="tab" type="button" data-view="actions">Actions</button>
+      </div>
+    </section>
+
+    <section class="metrics" aria-label="Fitness KPI totals">
+      <article>
+        <span>Total Check-ins</span>
+        <strong id="totalCheckins"></strong>
+      </article>
+      <article>
+        <span>Class Attendance</span>
+        <strong id="classAttendance"></strong>
+      </article>
+      <article>
+        <span>Participation Ratio</span>
+        <strong id="participationRatio"></strong>
+      </article>
+      <article>
+        <span>PT/MMA Packs</span>
+        <strong id="ptPacksSold"></strong>
+      </article>
+      <article>
+        <span>KPI Health</span>
+        <strong id="kpiHealth"></strong>
+      </article>
+    </section>
+
+    <section class="cycle-panel" aria-label="Fitness reporting period">
+      <div>
+        <span class="mini-label">Selected performance period</span>
+        <strong id="fitnessPeriod"></strong>
+      </div>
+      <div>
+        <span class="mini-label">Management focus</span>
+        <strong id="managementFocus"></strong>
+      </div>
+    </section>
+
+    <section class="status-legend fitness-legend" aria-label="Fitness status legend">
+      <span><span class="status green">GREEN</span> At or above target.</span>
+      <span><span class="status amber">WATCH</span> Within 10% of target.</span>
+      <span><span class="status red">RED</span> Needs intervention.</span>
+    </section>
+
+    <section class="report-downloader" aria-label="Fitness refresh">
+      <div class="section-heading">
+        <h2>Fitness Refresh</h2>
+        <p>Updates Fitness KPI actuals from Core Hapana.</p>
+      </div>
+      <form id="fitnessRefreshForm" class="download-form">
+        <label class="filter">
+          <span>From</span>
+          <input id="fitnessDateFrom" type="date" required>
+        </label>
+        <label class="filter">
+          <span>To</span>
+          <input id="fitnessDateTo" type="date" required>
+        </label>
+        <button class="download-button" type="submit">Update Fitness</button>
+      </form>
+      <p class="form-status" id="fitnessRefreshStatus" role="status"></p>
+    </section>
+
+    <section class="view active" id="scorecardView">
+      <div class="section-heading">
+        <h2>Fitness KPI Scorecard</h2>
+        <p>Club performance against participation, PT revenue, rent and class cost targets.</p>
+      </div>
+      <div class="fitness-scorecard" id="fitnessScorecard"></div>
+    </section>
+
+    <section class="view" id="participationView">
+      <div class="section-heading">
+        <h2>Class Participation Ratio</h2>
+        <p>Total check-ins compared with total class attendance.</p>
+      </div>
+      <section class="trend-card" aria-label="Class participation ratio trend">
+        <div class="trend-head">
+          <h3>Participation Trend</h3>
+          <p id="trendNote"></p>
+        </div>
+        <div class="trend-chart" id="fitnessTrend"></div>
+      </section>
+      <div class="summary-grid" id="participationGrid"></div>
+    </section>
+
+    <section class="view" id="ptRevenueView">
+      <div class="section-heading">
+        <h2>PT Packs Sold / PT Sessions Split Revenue</h2>
+        <p>Pack sales, paid sessions, POS revenue and Sessions-Split income.</p>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Club</th>
+              <th>PT/MMA Packs Sold</th>
+              <th>Paid PT Sessions</th>
+              <th>Revenue at POS</th>
+              <th>Sessions-Split Income</th>
+              <th>Total PT Revenue</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="ptRevenueBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="view" id="rentCostsView">
+      <div class="section-heading">
+        <h2>PT Rent Income & Class Costs</h2>
+        <p>Active PT rent collection and paid class costs against budget.</p>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Club</th>
+              <th>Current Active PTs</th>
+              <th>PT Rent Collected</th>
+              <th>Conditioning Classes $</th>
+              <th>Skills Classes $</th>
+              <th>Paid Class Costs</th>
+              <th>Budget</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="rentCostsBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="view" id="actionsView">
+      <div class="section-heading">
+        <h2>Priority Actions</h2>
+        <p>Automatically surfaced from under-target KPIs.</p>
+      </div>
+      <div class="fitness-actions" id="fitnessActions"></div>
+    </section>
+  </main>
+
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="auth.js"></script>
+  <script src="fitness.js?v=2026-09-10-fitness"></script>
+</body>
+</html>

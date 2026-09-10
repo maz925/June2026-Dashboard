@@ -12,6 +12,10 @@
     {
       "path": "/api/member-cron",
       "schedule": "0 20 * * *"
+    },
+    {
+      "path": "/api/fitness-metrics",
+      "schedule": "30 21 * * 4"
     }
   ]
 }

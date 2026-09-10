@@ -26,6 +26,26 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+body.fitness-theme {
+  --ink: #102033;
+  --muted: #5f7188;
+  --line: #c8d8eb;
+  --page: #f2f7fc;
+  --panel: #ffffff;
+  --red: #c83d33;
+  --red-bg: #fff0ef;
+  --green: #1f7a65;
+  --green-bg: #e7f7f2;
+  --amber: #9a6500;
+  --amber-bg: #fff6df;
+  --accent: #1468c8;
+  --charcoal: #17385f;
+}
+
+body.fitness-theme .topbar {
+  background: linear-gradient(90deg, #0b2545 0%, #174a7c 58%, #1468c8 100%);
+}
+
 .topbar {
   display: flex;
   align-items: center;
@@ -677,6 +697,151 @@ input[type="password"] {
   background: var(--accent);
 }
 
+.progress span.green {
+  background: var(--green);
+}
+
+.progress span.amber {
+  background: var(--amber);
+}
+
+.progress span.red {
+  background: var(--red);
+}
+
+.fitness-legend {
+  margin-bottom: 24px;
+}
+
+.fitness-scorecard,
+.fitness-actions {
+  display: grid;
+  gap: 12px;
+}
+
+.fitness-club-card {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 10px 24px rgba(31, 38, 46, 0.06);
+}
+
+.fitness-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.fitness-kpi-section {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.fitness-kpi-section h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.fitness-kpi {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px 10px;
+  min-height: 104px;
+  padding: 12px;
+  border: 1px solid #e4e8ee;
+  border-radius: 8px;
+  background: #fafbfc;
+}
+
+.fitness-kpi .progress {
+  grid-column: 1 / -1;
+  margin-top: 0;
+}
+
+.target-note {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.program-bars {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.program-bars > span {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  align-items: center;
+  gap: 8px;
+}
+
+.program-label {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.program-track {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e8ebef;
+}
+
+.program-track i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+}
+
+.program-track .oneOnOne {
+  background: var(--accent);
+}
+
+.program-track .smallGroup {
+  background: var(--green);
+}
+
+.program-track .assessments {
+  background: #2f6fd6;
+}
+
+.program-track .challenges {
+  background: var(--amber);
+}
+
+.action-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 10px 24px rgba(31, 38, 46, 0.06);
+}
+
+.action-card h3 {
+  margin: 8px 0 4px;
+  font-size: 1rem;
+}
+
+.action-card p {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.action-card strong {
+  color: var(--red);
+  white-space: nowrap;
+}
+
 .table-wrap {
   overflow: auto;
   border: 1px solid var(--line);
@@ -768,6 +933,7 @@ tr:last-child td {
   .cycle-panel,
   .movement-panel,
   .cancellation-panel,
+  .fitness-kpi-grid,
   .summary-grid,
   .latest-grid,
   .target-grid {
@@ -789,6 +955,7 @@ tr:last-child td {
   .cycle-panel,
   .movement-panel,
   .cancellation-panel,
+  .fitness-kpi-grid,
   .summary-grid,
   .latest-grid,
   .target-grid {
@@ -811,5 +978,10 @@ tr:last-child td {
 
   .range-form {
     grid-template-columns: 1fr;
+  }
+
+  .action-card {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
