@@ -1,4 +1,4 @@
-const FITNESS_APP_VERSION = "fitness-kpi-dashboard-v2-2026-09-10";
+const FITNESS_APP_VERSION = "fitness-kpi-dashboard-v3-2026-09-10";
 
 const money = new Intl.NumberFormat("en-AU", {
   style: "currency",
@@ -80,7 +80,12 @@ const fitnessRefreshForm = document.querySelector("#fitnessRefreshForm");
 const fitnessDateFrom = document.querySelector("#fitnessDateFrom");
 const fitnessDateTo = document.querySelector("#fitnessDateTo");
 const fitnessRefreshStatus = document.querySelector("#fitnessRefreshStatus");
+const fitnessTargetsForm = document.querySelector("#fitnessTargetsForm");
+const fitnessTargetsGrid = document.querySelector("#fitnessTargetsGrid");
+const fitnessTargetsStatus = document.querySelector("#fitnessTargetsStatus");
+const targetClub = document.querySelector("#targetClub");
 let allKpis = fitnessData.kpiGroups.flatMap((group) => group.kpis);
+let savedTargetsByClub = {};
 
 function row(period, club, actualValues, targetValues, focus) {
   const keys = [
@@ -201,8 +206,10 @@ function initControls() {
   clubFilter.multiple = true;
   clubFilter.size = Math.min(5, clubs.length);
   clubFilter.innerHTML = clubs.map((club) => `<option value="${escapeHtml(club)}"${club === "All Clubs" ? " selected" : ""}>${escapeHtml(club)}</option>`).join("");
-  periodFilter.innerHTML = fitnessData.periods.map((period) => `<option value="${period.id}">${escapeHtml(period.label)}</option>`).join("");
-  periodFilter.value = state.period;
+  periodFilter.innerHTML = periodOptionsHtml();
+  periodFilter.value = `stored:${state.period}`;
+  targetClub.innerHTML = fitnessData.clubs.map((club) => `<option value="${escapeHtml(club)}">${escapeHtml(club)}</option>`).join("");
+  if (!targetClub.value) targetClub.value = fitnessData.clubs[0] || "";
 
   const dates = latestWeekInputs();
   fitnessDateFrom.value = dates.dateFrom;
@@ -215,6 +222,86 @@ function syncClubSelection() {
   [...clubFilter.options].forEach((option) => {
     option.selected = state.clubs.includes(option.value);
   });
+}
+
+function periodOptionsHtml() {
+  const stored = fitnessData.periods.map((period) =>
+    `<option value="stored:${escapeHtml(period.id)}">${escapeHtml(period.label)}${period.range ? ` (${escapeHtml(period.range)})` : ""}</option>`
+  ).join("");
+  const quickOptions = quickPeriodOptions();
+  return `
+    <optgroup label="Stored periods">${stored}</optgroup>
+    <optgroup label="Month to date">
+      ${quickOptions.mtd.map(renderRangeOption).join("")}
+    </optgroup>
+    <optgroup label="Months">
+      ${quickOptions.months.map(renderRangeOption).join("")}
+    </optgroup>
+    <optgroup label="Week endings">
+      ${quickOptions.weeks.map(renderRangeOption).join("")}
+    </optgroup>
+  `;
+}
+
+function renderRangeOption(option) {
+  return `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`;
+}
+
+function quickPeriodOptions() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  const mtd = [{
+    label: `${monthName(today)} MTD (${displayInputRange(monthStart, today)})`,
+    value: rangeOptionValue("mtd", monthStart, today)
+  }];
+
+  const months = Array.from({ length: 6 }, (_, index) => {
+    const first = new Date(today.getFullYear(), today.getMonth() - index - 1, 1);
+    const last = new Date(today.getFullYear(), today.getMonth() - index, 0);
+    return {
+      label: `${monthName(first)} (${displayInputRange(first, last)})`,
+      value: rangeOptionValue("month", first, last)
+    };
+  });
+
+  const latest = latestWeekInputs();
+  const latestEnd = parseInputDate(latest.dateTo);
+  const weeks = Array.from({ length: 12 }, (_, index) => {
+    const end = addDays(latestEnd, index * -7);
+    const start = addDays(end, -6);
+    return {
+      label: `Week ending ${displayInputDate(end)} (${displayInputRange(start, end)})`,
+      value: rangeOptionValue("week", start, end)
+    };
+  });
+
+  return { mtd, months, weeks };
+}
+
+function rangeOptionValue(mode, start, end) {
+  return `range:${mode}:${formatInputDate(start)}:${formatInputDate(end)}`;
+}
+
+function monthName(date) {
+  return new Intl.DateTimeFormat("en-AU", { month: "long", year: "numeric" }).format(date);
+}
+
+function displayInputDate(date) {
+  return new Intl.DateTimeFormat("en-AU", {
+    day: "numeric",
+    month: "short",
+    year: "numeric"
+  }).format(date);
+}
+
+function displayInputRange(start, end) {
+  return `${displayInputDate(start)} to ${displayInputDate(end)}`;
+}
+
+function parseInputDate(value) {
+  const [year, month, day] = String(value || "").split("-").map(Number);
+  return new Date(year, month - 1, day);
 }
 
 function renderSource() {
@@ -456,6 +543,119 @@ function renderActions() {
   }).join("");
 }
 
+function renderTargetsEditor() {
+  const club = targetClub.value || fitnessData.clubs[0] || "";
+  const item = fitnessData.rows.find((row) => row.club === club && row.period === state.period)
+    || fitnessData.rows.find((row) => row.club === club);
+  const currentTargets = {
+    ...(item?.targets || {}),
+    ...(savedTargetsByClub[club] || {})
+  };
+
+  if (!club || !fitnessTargetsGrid) return;
+
+  fitnessTargetsGrid.innerHTML = fitnessData.kpiGroups.map((group) => `
+    <section class="target-group">
+      <h3>${escapeHtml(group.title)}</h3>
+      <div class="target-input-grid">
+        ${group.kpis.map((kpi) => renderTargetInput(kpi, currentTargets[kpi.key])).join("")}
+      </div>
+    </section>
+  `).join("");
+}
+
+function renderTargetInput(kpi, value) {
+  const step = kpi.type === "percent" ? "0.1" : "1";
+  const suffix = kpi.type === "percent" ? "%" : "";
+  const prefix = kpi.type === "money" ? "$" : "";
+  return `
+    <label class="target-input-card">
+      <span>${escapeHtml(kpi.label)}</span>
+      <div class="target-input-shell">
+        ${prefix ? `<b>${prefix}</b>` : ""}
+        <input
+          type="number"
+          min="0"
+          step="${step}"
+          name="${escapeHtml(kpi.key)}"
+          value="${Number(value || 0)}"
+          inputmode="decimal"
+          required
+        >
+        ${suffix ? `<b>${suffix}</b>` : ""}
+      </div>
+      <small>${kpi.target === "maximum" ? "Maximum" : kpi.target === "reference" ? "Budget reference" : "Minimum"}</small>
+    </label>
+  `;
+}
+
+function applySavedTargets(targetsByClub = {}) {
+  savedTargetsByClub = targetsByClub || {};
+  fitnessData.rows = fitnessData.rows.map((item) => {
+    const targets = {
+      ...(item.targets || {}),
+      ...(savedTargetsByClub[item.club] || {})
+    };
+    if (targets.classCostBudget !== undefined) {
+      item.actuals.classCostBudget = Number(targets.classCostBudget) || 0;
+    }
+    return { ...item, targets };
+  });
+}
+
+function selectedTargetValues() {
+  const formData = new FormData(fitnessTargetsForm);
+  const values = {};
+  for (const kpi of allKpis) {
+    const raw = formData.get(kpi.key);
+    values[kpi.key] = raw === null || raw === "" ? 0 : Number(raw);
+  }
+  return values;
+}
+
+async function loadFitnessTargets() {
+  try {
+    const response = await fetch("/api/fitness-targets", { headers: { "Accept": "application/json" } });
+    if (!response.ok) throw new Error(`Fitness targets returned ${response.status}`);
+    const payload = await response.json();
+    applySavedTargets(payload.targets || {});
+  } catch (error) {
+    console.warn("Fitness targets could not load.", error);
+  }
+}
+
+async function saveFitnessTargets() {
+  const button = fitnessTargetsForm.querySelector("button");
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = "Saving...";
+  fitnessTargetsStatus.textContent = "Saving Fitness KPI targets...";
+
+  try {
+    const response = await fetch("/api/fitness-targets", {
+      method: "POST",
+      headers: {
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        club: targetClub.value,
+        targets: selectedTargetValues()
+      })
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(errorText(payload.error || `HTTP ${response.status}`));
+    applySavedTargets(payload.targets || {});
+    render();
+    fitnessTargetsStatus.textContent = `Targets saved for ${targetClub.value}.`;
+  } catch (error) {
+    fitnessTargetsStatus.textContent = errorText(error);
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
+  }
+}
+
 function severity(item) {
   if (!item.target) return 99;
   if (item.status === "red") return 0;
@@ -471,6 +671,7 @@ function render() {
   renderParticipation();
   renderPtRevenue();
   renderRentCosts();
+  renderTargetsEditor();
   renderActions();
 }
 
@@ -496,10 +697,18 @@ fitnessRefreshForm.addEventListener("submit", (event) => {
   refreshFitnessMetrics();
 });
 
-periodFilter.addEventListener("change", () => {
-  state.period = periodFilter.value;
-  render();
-  logFitnessDashboardView();
+fitnessTargetsForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  saveFitnessTargets();
+});
+
+targetClub.addEventListener("change", () => {
+  renderTargetsEditor();
+  fitnessTargetsStatus.textContent = "";
+});
+
+periodFilter.addEventListener("change", async () => {
+  await handlePeriodChange();
 });
 
 document.querySelectorAll(".tab").forEach((button) => {
@@ -529,6 +738,7 @@ async function loadFitnessData() {
     };
     allKpis = fitnessData.kpiGroups.flatMap((group) => group.kpis);
     state.period = fitnessData.periods[0]?.id || state.period;
+    await loadFitnessTargets();
     if (payload.rows.length) {
       state.connection = "live";
       return;
@@ -550,7 +760,8 @@ async function refreshFitnessMetrics() {
     const params = new URLSearchParams({
       all: "1",
       date_from: toHapanaDate(fitnessDateFrom.value),
-      date_to: toHapanaDate(fitnessDateTo.value)
+      date_to: toHapanaDate(fitnessDateTo.value),
+      period_mode: "custom"
     });
     const response = await fetch(`/api/fitness-metrics?${params.toString()}`, {
       headers: { "Accept": "application/json" }
@@ -576,6 +787,73 @@ async function refreshFitnessMetrics() {
     button.disabled = false;
     button.textContent = originalText;
   }
+}
+
+async function handlePeriodChange() {
+  const value = periodFilter.value;
+  if (value.startsWith("stored:")) {
+    state.period = value.slice("stored:".length);
+    render();
+    logFitnessDashboardView();
+    return;
+  }
+
+  if (!value.startsWith("range:")) return;
+  const [, mode, dateFrom, dateTo] = value.split(":");
+  await loadFitnessRange(mode, dateFrom, dateTo);
+}
+
+async function loadFitnessRange(mode, dateFrom, dateTo) {
+  const originalValue = periodFilter.value;
+  periodFilter.disabled = true;
+  fitnessRefreshStatus.textContent = `Loading ${periodLabelForMode(mode)} from Hapana...`;
+
+  try {
+    const params = new URLSearchParams({
+      all: "1",
+      date_from: toHapanaDate(dateFrom),
+      date_to: toHapanaDate(dateTo),
+      period_mode: mode
+    });
+    const response = await fetch(`/api/fitness-metrics?${params.toString()}`, {
+      headers: { "Accept": "application/json" }
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok && response.status !== 207) {
+      throw new Error(errorText(body.error || body || `HTTP ${response.status}`));
+    }
+    const selectedPeriod = periodIdFromResponse(body, mode, toHapanaDate(dateFrom), toHapanaDate(dateTo));
+    await loadFitnessData();
+    if (selectedPeriod) state.period = selectedPeriod;
+    initControls();
+    render();
+    fitnessRefreshStatus.textContent = `${periodLabelForMode(mode)} loaded.`;
+  } catch (error) {
+    fitnessRefreshStatus.textContent = errorText(error);
+    periodFilter.value = originalValue;
+  } finally {
+    periodFilter.disabled = false;
+  }
+}
+
+function periodIdFromResponse(payload, mode, dateFrom, dateTo) {
+  const match = payload.periods?.find((period) =>
+    period.periodMode === mode && period.dateFrom === dateFrom && period.dateTo === dateTo
+  );
+  if (match?.id) return match.id;
+  const row = payload.rows?.find((item) =>
+    item.periodMode === mode && item.dateFrom === dateFrom && item.dateTo === dateTo
+  );
+  return row?.period || payload.periods?.[0]?.id || "";
+}
+
+function periodLabelForMode(mode) {
+  return {
+    mtd: "month to date",
+    month: "month",
+    week: "week ending",
+    custom: "custom period"
+  }[mode] || "period";
 }
 
 function latestWeekInputs() {

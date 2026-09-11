@@ -38,6 +38,7 @@
         <button class="tab" type="button" data-view="participation">Participation</button>
         <button class="tab" type="button" data-view="ptRevenue">PT Revenue</button>
         <button class="tab" type="button" data-view="rentCosts">Rent & Costs</button>
+        <button class="tab" type="button" data-view="targets">Targets</button>
         <button class="tab" type="button" data-view="actions">Actions</button>
       </div>
     </section>
@@ -171,6 +172,24 @@
       </div>
     </section>
 
+    <section class="view" id="targetsView">
+      <div class="section-heading">
+        <h2>Fitness KPI Targets</h2>
+        <p>Update the weekly target numbers used for each club's Fitness scorecard.</p>
+      </div>
+      <form id="fitnessTargetsForm" class="target-editor">
+        <label class="filter target-club-picker">
+          <span>Club</span>
+          <select id="targetClub"></select>
+        </label>
+        <div class="target-editor-grid" id="fitnessTargetsGrid"></div>
+        <div class="target-editor-actions">
+          <button class="download-button" type="submit">Save Targets</button>
+          <p class="form-status" id="fitnessTargetsStatus" role="status"></p>
+        </div>
+      </form>
+    </section>
+
     <section class="view" id="actionsView">
       <div class="section-heading">
         <h2>Priority Actions</h2>
@@ -180,6 +199,6 @@
     </section>
   </main>
 
-  <script src="fitness.js?v=2026-09-10-fitness"></script>
+  <script src="fitness.js?v=2026-09-10-targets"></script>
 </body>
 </html>

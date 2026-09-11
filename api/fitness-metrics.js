@@ -6,6 +6,7 @@ const {
 
 const FITNESS_METRICS_VERSION = "fitness-metrics-hapana-v1-2026-09-10";
 const STORAGE_PATH = "fitness-metrics.json";
+const TARGETS_STORAGE_PATH = "fitness-targets.json";
 const TIME_ZONE = "Australia/Sydney";
 
 const LOCATIONS = [
@@ -85,6 +86,7 @@ module.exports = async function handler(request, response) {
     const window = weekWindow(url.searchParams);
     const targetLocations = locationsForRequest(url.searchParams);
     const existing = await loadStoredFitnessMetrics();
+    const targetOverrides = await loadStoredFitnessTargets();
     const previousRows = existing.rows.filter((row) =>
       row.period !== window.period || targetLocations.every((location) => location.club !== row.club)
     );
@@ -98,7 +100,7 @@ module.exports = async function handler(request, response) {
           dateFrom: window.dateFrom,
           dateTo: window.dateTo
         });
-        rows.push(await buildFitnessRow(csv, { club, location, window }));
+        rows.push(await buildFitnessRow(csv, { club, location, window, targetOverrides }));
       } catch (error) {
         failures.push({ club, error: errorText(error) });
       }
@@ -148,6 +150,13 @@ async function loadStoredFitnessMetrics() {
   return new Response(result.stream).json();
 }
 
+async function loadStoredFitnessTargets() {
+  const result = await get(TARGETS_STORAGE_PATH, { access: "private", useCache: false }).catch(() => null);
+  if (!result || result.statusCode !== 200 || !result.stream) return {};
+  const payload = await new Response(result.stream).json().catch(() => ({}));
+  return payload.targets || {};
+}
+
 function emptyPayload() {
   return buildPayload({
     rows: [],
@@ -173,20 +182,27 @@ function periodsFromRows(rows, currentWindow) {
   const rowPeriods = [...new Map(rows.map((row) => [row.period, {
     id: row.period,
     label: row.periodLabel,
-    range: row.periodRange
+    range: row.periodRange,
+    periodMode: row.periodMode,
+    dateFrom: row.dateFrom,
+    dateTo: row.dateTo
   }])).values()];
   const fallback = {
     id: currentWindow.period,
     label: currentWindow.label,
-    range: currentWindow.range
+    range: currentWindow.range,
+    periodMode: currentWindow.periodMode,
+    dateFrom: currentWindow.dateFrom,
+    dateTo: currentWindow.dateTo
   };
   return rowPeriods.length ? rowPeriods.sort((a, b) => b.id.localeCompare(a.id)) : [fallback];
 }
 
-async function buildFitnessRow(csv, { club, location, window }) {
+async function buildFitnessRow(csv, { club, location, window, targetOverrides = {} }) {
   const records = parseDelimited(csv);
   const actuals = summariseNetRevenue(records);
   const reportNotes = [];
+  const targets = targetsForClub(club, targetOverrides);
 
   const participation = await optionalParticipationMetrics({ location, window }).catch((error) => {
     reportNotes.push(error.message);
@@ -202,16 +218,19 @@ async function buildFitnessRow(csv, { club, location, window }) {
     ? round1((actuals.totalClassAttendance / actuals.totalCheckins) * 100)
     : 0;
   actuals.paidClassCosts = round2((actuals.conditioningClassCosts || 0) + (actuals.skillsClassCosts || 0)) || actuals.paidClassCosts || 0;
-  actuals.classCostBudget = targetsForClub(club).classCostBudget || 0;
+  actuals.classCostBudget = targets.classCostBudget || 0;
 
   return {
     period: window.period,
     periodLabel: window.label,
     periodRange: window.range,
+    periodMode: window.periodMode,
+    dateFrom: window.dateFrom,
+    dateTo: window.dateTo,
     club,
     actuals,
-    targets: targetsForClub(club),
-    focus: focusFor(actuals, targetsForClub(club), reportNotes),
+    targets,
+    focus: focusFor(actuals, targets, reportNotes),
     rowCount: records.length,
     reportNotes
   };
@@ -320,12 +339,13 @@ function blankActuals() {
   };
 }
 
-function targetsForClub(club) {
+function targetsForClub(club, targetOverrides = {}) {
   const configured = parseJsonEnv("HAPANA_FITNESS_TARGETS");
   return {
     ...blankActuals(),
     ...(DEFAULT_TARGETS[club] || {}),
-    ...(configured[club] || {})
+    ...(configured[club] || {}),
+    ...(targetOverrides[club] || {})
   };
 }
 
@@ -375,7 +395,8 @@ function locationsForRequest(params) {
 function weekWindow(params) {
   const explicitFrom = params.get("date_from");
   const explicitTo = params.get("date_to");
-  if (explicitFrom && explicitTo) return windowFromDates(explicitFrom, explicitTo);
+  const periodMode = params.get("period_mode") || (explicitFrom && explicitTo ? "custom" : "week");
+  if (explicitFrom && explicitTo) return windowFromDates(explicitFrom, explicitTo, periodMode);
 
   const today = sydneyCalendarDate();
   const day = today.getUTCDay();
@@ -383,20 +404,48 @@ function weekWindow(params) {
   const latestAvailableThursday = addDays(today, -daysSinceThursday);
   const end = addDays(latestAvailableThursday, -4);
   const start = addDays(end, -6);
-  return windowFromDates(hapanaDate(start), hapanaDate(end));
+  return windowFromDates(hapanaDate(start), hapanaDate(end), "week");
 }
 
-function windowFromDates(dateFrom, dateTo) {
+function windowFromDates(dateFrom, dateTo, periodMode = "week") {
   const end = parseHapanaDate(dateTo);
   const start = parseHapanaDate(dateFrom);
-  const iso = end.toISOString().slice(0, 10);
+  const endIso = end.toISOString().slice(0, 10);
+  const startIso = start.toISOString().slice(0, 10);
   return {
     dateFrom,
     dateTo,
-    period: iso,
-    label: `Week ending ${displayDate(end)}`,
+    periodMode,
+    period: periodId(periodMode, startIso, endIso),
+    label: periodLabel(periodMode, start, end),
     range: `${displayDate(start)} to ${displayDate(end)}`
   };
+}
+
+function periodId(periodMode, startIso, endIso) {
+  if (periodMode === "week") return `week-${endIso}`;
+  if (periodMode === "month") return `month-${startIso}-${endIso}`;
+  if (periodMode === "mtd") return `mtd-${startIso}-${endIso}`;
+  return `custom-${startIso}-${endIso}`;
+}
+
+function periodLabel(periodMode, start, end) {
+  if (periodMode === "month") {
+    return new Intl.DateTimeFormat("en-AU", {
+      month: "long",
+      year: "numeric",
+      timeZone: "UTC"
+    }).format(start);
+  }
+  if (periodMode === "mtd") {
+    return `${new Intl.DateTimeFormat("en-AU", {
+      month: "long",
+      year: "numeric",
+      timeZone: "UTC"
+    }).format(end)} MTD`;
+  }
+  if (periodMode === "week") return `Week ending ${displayDate(end)}`;
+  return `Custom ${displayDate(start)} to ${displayDate(end)}`;
 }
 
 function sortRows(rows) {

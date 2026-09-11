@@ -46,6 +46,26 @@ body.fitness-theme .topbar {
   background: linear-gradient(90deg, #0b2545 0%, #174a7c 58%, #1468c8 100%);
 }
 
+body.pos-theme {
+  --ink: #12231b;
+  --muted: #60756b;
+  --line: #cbded3;
+  --page: #f3f8f5;
+  --panel: #ffffff;
+  --red: #c83d33;
+  --red-bg: #fff0ef;
+  --green: #17834f;
+  --green-bg: #e8f7ef;
+  --amber: #946200;
+  --amber-bg: #fff6df;
+  --accent: #17834f;
+  --charcoal: #173c2b;
+}
+
+body.pos-theme .topbar {
+  background: linear-gradient(90deg, #13221a 0%, #174832 58%, #17834f 100%);
+}
+
 .topbar {
   display: flex;
   align-items: center;
@@ -463,6 +483,108 @@ input[type="password"] {
   margin: 10px 0 0;
   color: var(--muted);
   font-size: 0.88rem;
+}
+
+.target-editor {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 10px 24px rgba(31, 38, 46, 0.06);
+}
+
+.target-club-picker {
+  max-width: 320px;
+}
+
+.target-editor-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.target-group {
+  display: grid;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.target-group:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.target-group h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.98rem;
+}
+
+.target-input-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.target-input-card {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #e4e8ee;
+  border-radius: 8px;
+  background: #fafbfc;
+}
+
+.target-input-card span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.target-input-card small {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.target-input-shell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+}
+
+.target-input-shell b {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.target-input-shell input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  color: var(--ink);
+  background: transparent;
+  font: inherit;
+  font-weight: 800;
+}
+
+.target-editor-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.target-editor-actions .form-status {
+  margin: 0;
 }
 
 .view {
@@ -934,6 +1056,7 @@ tr:last-child td {
   .movement-panel,
   .cancellation-panel,
   .fitness-kpi-grid,
+  .target-input-grid,
   .summary-grid,
   .latest-grid,
   .target-grid {
@@ -956,6 +1079,7 @@ tr:last-child td {
   .movement-panel,
   .cancellation-panel,
   .fitness-kpi-grid,
+  .target-input-grid,
   .summary-grid,
   .latest-grid,
   .target-grid {
