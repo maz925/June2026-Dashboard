@@ -66,6 +66,26 @@ body.pos-theme .topbar {
   background: linear-gradient(90deg, #13221a 0%, #174832 58%, #17834f 100%);
 }
 
+body.members-theme {
+  --ink: #26180e;
+  --muted: #756657;
+  --line: #e5d2bf;
+  --page: #fbf6f1;
+  --panel: #ffffff;
+  --red: #c83d33;
+  --red-bg: #fff0ef;
+  --green: #1f7a4d;
+  --green-bg: #eaf8f0;
+  --amber: #b46300;
+  --amber-bg: #fff2df;
+  --accent: #e16a1a;
+  --charcoal: #4b2b18;
+}
+
+body.members-theme .topbar {
+  background: linear-gradient(90deg, #211812 0%, #794018 58%, #e16a1a 100%);
+}
+
 .topbar {
   display: flex;
   align-items: center;
