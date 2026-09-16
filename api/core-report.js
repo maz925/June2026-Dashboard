@@ -101,6 +101,7 @@ module.exports = async function handler(request, response) {
         version: CORE_REPORT_VERSION,
         location: locationName,
         filters,
+        reportLinks: extractReportLinks(reportsHtml),
         fields: extractRelevantReportFields(reportsHtml),
         text: textSnippet(reportsHtml)
       });
@@ -499,6 +500,53 @@ function absoluteUrl(url, base) {
 
 function textSnippet(html) {
   return decodeHtml(String(html).replace(/<script[\s\S]*?<\/script>/gi, "").replace(/<style[\s\S]*?<\/style>/gi, "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()).slice(0, 500);
+}
+
+function extractReportLinks(html) {
+  const output = [];
+  const relevant = /(attendance|utili[sz]ation|session|class|booking|check|visit)/i;
+  const source = String(html || "");
+
+  for (const match of source.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi)) {
+    const open = match[1] || "";
+    const body = match[2] || "";
+    const text = textSnippet(body);
+    const href = attr(open, "href");
+    const onclick = attr(open, "onclick");
+    const combined = `${text} ${href} ${onclick}`;
+    if (!relevant.test(combined)) continue;
+    output.push({
+      text: text.slice(0, 180),
+      href,
+      onclick,
+      filters: [...new Set(combined.match(/get[A-Za-z0-9_]+/g) || [])],
+      query: queryParamsFromText(`${href} ${onclick}`)
+    });
+  }
+
+  const plain = decodeHtml(source.replace(/<script[\s\S]*?<\/script>/gi, "").replace(/\s+/g, " "));
+  for (const term of ["Attendance by Session", "Attendance", "Utilization", "Session"]) {
+    const index = plain.toLowerCase().indexOf(term.toLowerCase());
+    if (index >= 0) {
+      const snippet = plain.slice(Math.max(0, index - 500), index + 900);
+      output.push({
+        text: term,
+        nearbyText: textSnippet(snippet),
+        filters: [...new Set(snippet.match(/get[A-Za-z0-9_]+/g) || [])],
+        query: queryParamsFromText(snippet)
+      });
+    }
+  }
+
+  return output.slice(0, 80);
+}
+
+function queryParamsFromText(value) {
+  const params = {};
+  for (const match of String(value || "").matchAll(/(?:[?&]|&amp;)([A-Za-z0-9_[\]-]+)=([^&"'<> ]+)/g)) {
+    params[decodeHtml(match[1])] = decodeHtml(match[2]);
+  }
+  return params;
 }
 
 function extractRelevantReportFields(html) {
