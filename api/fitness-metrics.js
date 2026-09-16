@@ -23,6 +23,7 @@ const KPI_GROUPS = [
     kpis: [
       { key: "totalCheckins", label: "Total Check-ins", type: "number", target: "minimum" },
       { key: "totalClassAttendance", label: "Total Class Attendance", type: "number", target: "minimum" },
+      { key: "totalClassCapacity", label: "Total Class Capacity", type: "number", target: "reference" },
       { key: "classParticipationRatio", label: "Class Participation Ratio", type: "percent", target: "minimum" }
     ]
   },
@@ -54,10 +55,10 @@ const KPI_GROUPS = [
 ];
 
 const DEFAULT_TARGETS = {
-  "Bankstown": { totalCheckins: 7600, totalClassAttendance: 3000, classParticipationRatio: 39, ptMmaPacksSold: 26, paidPtSessions: 205, posRevenue: 21000, sessionSplitIncome: 14000, activePts: 10, ptRentCollected: 7800, conditioningClassCosts: 4100, skillsClassCosts: 3100, paidClassCosts: 7200, classCostBudget: 7200 },
-  "Wetherill Park": { totalCheckins: 7500, totalClassAttendance: 3300, classParticipationRatio: 42, ptMmaPacksSold: 29, paidPtSessions: 225, posRevenue: 23500, sessionSplitIncome: 15800, activePts: 12, ptRentCollected: 9300, conditioningClassCosts: 4600, skillsClassCosts: 3500, paidClassCosts: 8300, classCostBudget: 8300 },
-  "580G": { totalCheckins: 6200, totalClassAttendance: 2300, classParticipationRatio: 37, ptMmaPacksSold: 22, paidPtSessions: 175, posRevenue: 18000, sessionSplitIncome: 12000, activePts: 8, ptRentCollected: 6400, conditioningClassCosts: 3500, skillsClassCosts: 2800, paidClassCosts: 6200, classCostBudget: 6200 },
-  "Woolooware": { totalCheckins: 6600, totalClassAttendance: 2550, classParticipationRatio: 39, ptMmaPacksSold: 25, paidPtSessions: 185, posRevenue: 19000, sessionSplitIncome: 12800, activePts: 9, ptRentCollected: 7000, conditioningClassCosts: 3900, skillsClassCosts: 3000, paidClassCosts: 6900, classCostBudget: 6900 }
+  "Bankstown": { totalCheckins: 7600, totalClassAttendance: 3000, totalClassCapacity: 0, classParticipationRatio: 39, ptMmaPacksSold: 26, paidPtSessions: 205, posRevenue: 21000, sessionSplitIncome: 14000, activePts: 10, ptRentCollected: 7800, conditioningClassCosts: 4100, skillsClassCosts: 3100, paidClassCosts: 7200, classCostBudget: 7200 },
+  "Wetherill Park": { totalCheckins: 7500, totalClassAttendance: 3300, totalClassCapacity: 0, classParticipationRatio: 42, ptMmaPacksSold: 29, paidPtSessions: 225, posRevenue: 23500, sessionSplitIncome: 15800, activePts: 12, ptRentCollected: 9300, conditioningClassCosts: 4600, skillsClassCosts: 3500, paidClassCosts: 8300, classCostBudget: 8300 },
+  "580G": { totalCheckins: 6200, totalClassAttendance: 2300, totalClassCapacity: 0, classParticipationRatio: 37, ptMmaPacksSold: 22, paidPtSessions: 175, posRevenue: 18000, sessionSplitIncome: 12000, activePts: 8, ptRentCollected: 6400, conditioningClassCosts: 3500, skillsClassCosts: 2800, paidClassCosts: 6200, classCostBudget: 6200 },
+  "Woolooware": { totalCheckins: 6600, totalClassAttendance: 2550, totalClassCapacity: 0, classParticipationRatio: 39, ptMmaPacksSold: 25, paidPtSessions: 185, posRevenue: 19000, sessionSplitIncome: 12800, activePts: 9, ptRentCollected: 7000, conditioningClassCosts: 3900, skillsClassCosts: 3000, paidClassCosts: 6900, classCostBudget: 6900 }
 };
 
 module.exports = async function handler(request, response) {
@@ -220,6 +221,7 @@ async function buildFitnessRow(csv, { club, location, window, targetOverrides = 
   actuals.classParticipationRatio = actuals.totalCheckins
     ? round1((actuals.totalClassAttendance / actuals.totalCheckins) * 100)
     : 0;
+  actuals.totalClassCapacity = targets.totalClassCapacity || 0;
   actuals.paidClassCosts = round2((actuals.conditioningClassCosts || 0) + (actuals.skillsClassCosts || 0)) || actuals.paidClassCosts || 0;
   actuals.classCostBudget = targets.classCostBudget || 0;
 
@@ -328,6 +330,7 @@ function blankActuals() {
   return {
     totalCheckins: 0,
     totalClassAttendance: 0,
+    totalClassCapacity: 0,
     classParticipationRatio: 0,
     ptMmaPacksSold: 0,
     paidPtSessions: 0,

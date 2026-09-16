@@ -22,6 +22,7 @@ let fitnessData = {
       kpis: [
         { key: "totalCheckins", label: "Total Check-ins", type: "number", target: "minimum" },
         { key: "totalClassAttendance", label: "Total Class Attendance", type: "number", target: "minimum" },
+        { key: "totalClassCapacity", label: "Total Class Capacity", type: "number", target: "reference" },
         { key: "classParticipationRatio", label: "Class Participation Ratio", type: "percent", target: "minimum" }
       ]
     },
@@ -142,6 +143,8 @@ function row(period, club, actualValues, targetValues, focus) {
   ];
   const actuals = Object.fromEntries(keys.map((key, index) => [key, actualValues[index]]));
   const targets = Object.fromEntries(keys.map((key, index) => [key, targetValues[index]]));
+  actuals.totalClassCapacity = 0;
+  targets.totalClassCapacity = 0;
   actuals.classCostBudget = targetValues[12];
   targets.classCostBudget = targetValues[12];
   return { period, club, actuals, targets, focus };
@@ -216,6 +219,7 @@ function formatValue(value, type) {
 }
 
 function targetLabel(kpi, target) {
+  if (kpi.key === "totalClassCapacity") return "Manual entry";
   if (kpi.target === "maximum") return `Budget ${formatValue(target, kpi.type)}`;
   if (kpi.target === "reference") return "Reference budget";
   return `Target ${formatValue(target, kpi.type)}`;
@@ -382,6 +386,7 @@ function renderMetrics() {
 
   setText("#totalCheckins", formatValue(totals.actuals.totalCheckins, "number"));
   setText("#classAttendance", formatValue(totals.actuals.totalClassAttendance, "number"));
+  setText("#classCapacity", formatValue(totals.actuals.totalClassCapacity, "number"));
   setText("#participationRatio", formatValue(totals.actuals.classParticipationRatio, "percent"));
   setText("#ptPacksSold", formatValue(totals.actuals.ptMmaPacksSold, "number"));
   setText("#kpiHealth", rows.length ? `${greenCount}/${statuses.length}` : "0/0");
@@ -468,6 +473,7 @@ function renderParticipation() {
         <div class="mini-grid">
           <span><span class="mini-label">Total Check-ins</span><strong class="mini-value">${number.format(item.actuals.totalCheckins || 0)}</strong></span>
           <span><span class="mini-label">Class Attendance</span><strong class="mini-value">${number.format(item.actuals.totalClassAttendance || 0)}</strong></span>
+          <span><span class="mini-label">Class Capacity</span><strong class="mini-value">${number.format(item.actuals.totalClassCapacity || 0)}</strong></span>
           <span><span class="mini-label">Participation Ratio</span><strong class="mini-value">${formatValue(item.actuals.classParticipationRatio, "percent")}</strong></span>
           <span><span class="mini-label">Ratio Target</span><strong class="mini-value">${formatValue(item.targets.classParticipationRatio, "percent")}</strong></span>
         </div>
@@ -848,7 +854,7 @@ function renderTargetInput(kpi, value) {
         >
         ${suffix ? `<b>${suffix}</b>` : ""}
       </div>
-      <small>${kpi.target === "maximum" ? "Maximum" : kpi.target === "reference" ? "Budget reference" : "Minimum"}</small>
+      <small>${kpi.key === "totalClassCapacity" ? "Manual entry" : kpi.target === "maximum" ? "Maximum" : kpi.target === "reference" ? "Budget reference" : "Minimum"}</small>
     </label>
   `;
 }
@@ -862,6 +868,9 @@ function applySavedTargets(targetsByClub = {}) {
     };
     if (targets.classCostBudget !== undefined) {
       item.actuals.classCostBudget = Number(targets.classCostBudget) || 0;
+    }
+    if (targets.totalClassCapacity !== undefined) {
+      item.actuals.totalClassCapacity = Number(targets.totalClassCapacity) || 0;
     }
     return { ...item, targets };
   });

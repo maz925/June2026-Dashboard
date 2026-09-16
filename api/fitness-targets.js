@@ -6,6 +6,7 @@ const STORAGE_PATH = "fitness-targets.json";
 const TARGET_KEYS = [
   "totalCheckins",
   "totalClassAttendance",
+  "totalClassCapacity",
   "classParticipationRatio",
   "ptMmaPacksSold",
   "paidPtSessions",
