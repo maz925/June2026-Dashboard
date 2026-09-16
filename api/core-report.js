@@ -107,20 +107,36 @@ module.exports = async function handler(request, response) {
       return;
     }
 
-    const reportKey = url.searchParams.get("report") || "netRevenueDetail";
-    const reportConfig = REPORTS[reportKey];
-    if (!reportConfig) {
+    const customFilter = url.searchParams.get("filter");
+    const reportType = url.searchParams.get("report_type") || "client";
+    const reportKey = customFilter ? "" : (url.searchParams.get("report") || "netRevenueDetail");
+    const reportConfig = reportKey ? REPORTS[reportKey] : {
+      filter: customFilter,
+      reportType,
+      filePrefix: customFilter || "advanced-report"
+    };
+    if (!reportConfig?.filter) {
       throw new Error(`Unknown report. Use one of: ${Object.keys(REPORTS).join(", ")}`);
     }
 
-    const csv = await downloadCoreReportCsv({
-      locationName,
-      dateFrom,
-      dateTo,
-      reportKey,
-      jar,
-      extraParams: reportParamsFromSearch(url.searchParams)
-    });
+    const csv = customFilter
+      ? await downloadCoreAdvancedReportCsv({
+        locationName,
+        dateFrom,
+        dateTo,
+        filter: customFilter,
+        reportType,
+        jar,
+        extraParams: reportParamsFromSearch(url.searchParams)
+      })
+      : await downloadCoreReportCsv({
+        locationName,
+        dateFrom,
+        dateTo,
+        reportKey,
+        jar,
+        extraParams: reportParamsFromSearch(url.searchParams)
+      });
 
     const fileSafeLocation = locationName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
     const fileSafeDateFrom = dateFrom.replace(/\//g, "-");
@@ -334,7 +350,7 @@ function isRedirect(status) {
 }
 
 function reportParamsFromSearch(params) {
-  const reserved = new Set(["location", "date_from", "date_to", "debug", "report"]);
+  const reserved = new Set(["location", "date_from", "date_to", "debug", "report", "filter", "report_type"]);
   const output = {};
   for (const [key, value] of params.entries()) {
     if (reserved.has(key)) continue;
