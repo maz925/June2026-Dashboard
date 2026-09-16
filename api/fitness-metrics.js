@@ -266,7 +266,7 @@ function summariseNetRevenue(records) {
 }
 
 async function optionalParticipationMetrics({ location, window }) {
-  const attendanceFilter = process.env.HAPANA_FITNESS_ATTENDANCE_FILTER;
+  const attendanceFilter = process.env.HAPANA_FITNESS_ATTENDANCE_FILTER || "AttendanceBySession";
   const checkinFilter = process.env.HAPANA_FITNESS_CHECKIN_FILTER;
   if (!attendanceFilter && !checkinFilter) return {};
 
@@ -280,7 +280,7 @@ async function optionalParticipationMetrics({ location, window }) {
       reportType: process.env.HAPANA_FITNESS_ATTENDANCE_REPORT_TYPE || "client",
       extraParams: paramsFromEnv("HAPANA_FITNESS_ATTENDANCE_PARAMS")
     });
-    metrics.totalClassAttendance = countRows(parseDelimited(csv));
+    metrics.totalClassAttendance = sumAttendanceRows(parseDelimited(csv));
   }
 
   if (checkinFilter) {
@@ -384,6 +384,12 @@ function countRows(rows) {
   return rows.filter((row) => Object.values(row).some((value) => String(value || "").trim())).length;
 }
 
+function sumAttendanceRows(rows) {
+  const total = rows.reduce((sum, row) =>
+    sum + numberValue(field(row, ["Attendances", "Attendance", "Attended", "Total Attendances"])), 0);
+  return total || countRows(rows);
+}
+
 function locationsForRequest(params) {
   if (params.get("all") === "1") return LOCATIONS;
   const requested = params.get("club") || params.get("location");
@@ -483,11 +489,15 @@ function sortRows(rows) {
 
 function amountValue(record) {
   const value = field(record, ["Gross Revenue", "Gross", "Amount", "Total", "Cost", "Price"]);
+  return round2(numberValue(value) / 1.1);
+}
+
+function numberValue(value) {
   if (!value) return 0;
   const negative = /\(.+\)|^-/.test(String(value));
   const cleaned = String(value).replace(/[^0-9.]/g, "");
   const amount = Number(cleaned || 0);
-  return round2((negative ? -amount : amount) / 1.1);
+  return negative ? -amount : amount;
 }
 
 function recordText(record) {
