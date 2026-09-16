@@ -19,7 +19,7 @@
         <a href="/pos.html">POS</a>
         <a href="/fitness.html">Fitness</a>
       </nav>
-      <span id="logStatus">Admin access required</span>
+      <span id="logStatus">Google sign-in required</span>
     </div>
   </header>
 
@@ -27,15 +27,9 @@
     <section class="report-downloader" aria-label="View log access">
       <div class="section-heading">
         <h2>Access View Log</h2>
-        <p>Enter the view-log secret configured in Vercel to load recent dashboard visits.</p>
+        <p>Use the same authorised Google sign-in as the dashboard to load recent visits.</p>
       </div>
-      <form id="logAccessForm" class="download-form">
-        <label class="filter">
-          <span>View log secret</span>
-          <input id="logSecret" type="password" autocomplete="current-password" required>
-        </label>
-        <button class="download-button" type="submit">Load Log</button>
-      </form>
+      <button class="download-button" id="reloadLogButton" type="button">Reload Log</button>
       <p class="form-status" id="logAccessStatus" role="status"></p>
     </section>
 
@@ -58,13 +52,15 @@
             </tr>
           </thead>
           <tbody id="logRows">
-            <tr><td colspan="7">Enter the view-log secret to load visits.</td></tr>
+            <tr><td colspan="7">Sign in with Google to load visits.</td></tr>
           </tbody>
         </table>
       </div>
     </section>
   </main>
 
-  <script src="log-view.js?v=2026-09-16"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="auth.js"></script>
+  <script src="log-view.js?v=2026-09-16-google"></script>
 </body>
 </html>

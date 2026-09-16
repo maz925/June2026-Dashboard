@@ -10,7 +10,7 @@ let certCache = { expires: 0, keys: [] };
 module.exports = async function handler(request, response) {
   response.setHeader("Access-Control-Allow-Origin", "*");
   response.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  response.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
+  response.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Google-Credential");
 
   if (request.method === "OPTIONS") {
     response.status(204).end();
@@ -19,7 +19,7 @@ module.exports = async function handler(request, response) {
 
   try {
     if (request.method === "GET") {
-      assertViewLogAccess(request);
+      await assertViewLogAccess(request);
       const logs = await readLogs();
       response.status(200).json({ logs: logs.slice(-500).reverse() });
       return;
@@ -52,22 +52,23 @@ module.exports = async function handler(request, response) {
   }
 };
 
-function assertViewLogAccess(request) {
+async function assertViewLogAccess(request) {
   const secret = process.env.VIEW_LOG_SECRET || "";
-  if (!secret) {
-    const error = new Error("VIEW_LOG_SECRET is not configured");
-    error.statusCode = 503;
-    throw error;
-  }
 
   const requestUrl = new URL(request.url, "https://dashboard.local");
   const token = requestUrl.searchParams.get("secret") ||
     String(request.headers.authorization || "").replace(/^Bearer\s+/i, "");
-  if (token !== secret) {
-    const error = new Error("View log access denied");
-    error.statusCode = 401;
-    throw error;
+  if (secret && token === secret) return;
+
+  const googleCredential = request.headers["x-google-credential"];
+  if (googleCredential) {
+    await verifyGoogleCredential(String(googleCredential));
+    return;
   }
+
+  const error = new Error("View log access denied");
+  error.statusCode = 401;
+  throw error;
 }
 
 async function verifyGoogleCredential(credential) {

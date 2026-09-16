@@ -1,42 +1,45 @@
-const accessForm = document.querySelector("#logAccessForm");
-const secretInput = document.querySelector("#logSecret");
+const reloadButton = document.querySelector("#reloadLogButton");
 const accessStatus = document.querySelector("#logAccessStatus");
 const logStatus = document.querySelector("#logStatus");
 const logRows = document.querySelector("#logRows");
 
-const storedSecret = sessionStorage.getItem("ufcgym_view_log_secret") || "";
-const urlSecret = new URLSearchParams(window.location.search).get("secret") || "";
-secretInput.value = urlSecret || storedSecret;
+init();
 
-if (secretInput.value) {
-  loadLogs(secretInput.value);
+reloadButton.addEventListener("click", () => loadLogs());
+
+async function init() {
+  setStatus("Waiting for Google sign-in...");
+  const profile = await window.dashboardAuth?.ready;
+  if (!profile) {
+    setStatus("Google sign-in is required to view logs.", true);
+    logStatus.textContent = "Sign-in required";
+    return;
+  }
+  loadLogs();
 }
 
-accessForm.addEventListener("submit", (event) => {
-  event.preventDefault();
-  loadLogs(secretInput.value.trim());
-});
-
-async function loadLogs(secret) {
-  if (!secret) {
-    setStatus("Enter the view-log secret.", true);
+async function loadLogs() {
+  const credential = sessionStorage.getItem("ufcgym_google_credential") || "";
+  if (!credential) {
+    setStatus("Google sign-in is required to view logs.", true);
+    logStatus.textContent = "Sign-in required";
     return;
   }
 
   setStatus("Loading view log...");
+  reloadButton.disabled = true;
   logRows.innerHTML = `<tr><td colspan="7">Loading...</td></tr>`;
 
   try {
     const response = await fetch("/api/view-log", {
       headers: {
         "Accept": "application/json",
-        "Authorization": `Bearer ${secret}`
+        "X-Google-Credential": credential
       }
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.error || `View log returned ${response.status}`);
 
-    sessionStorage.setItem("ufcgym_view_log_secret", secret);
     renderLogs(payload.logs || []);
     setStatus(`Loaded ${(payload.logs || []).length} log entries.`);
     logStatus.textContent = "View log loaded";
@@ -44,6 +47,8 @@ async function loadLogs(secret) {
     logRows.innerHTML = `<tr><td colspan="7">View log could not load.</td></tr>`;
     setStatus(error.message || "View log could not load.", true);
     logStatus.textContent = "Access denied";
+  } finally {
+    reloadButton.disabled = false;
   }
 }
 
