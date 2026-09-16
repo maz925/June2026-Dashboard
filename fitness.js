@@ -1,4 +1,4 @@
-const FITNESS_APP_VERSION = "fitness-kpi-dashboard-v3-2026-09-10";
+const FITNESS_APP_VERSION = "fitness-kpi-dashboard-v4-2026-09-16";
 
 const money = new Intl.NumberFormat("en-AU", {
   style: "currency",
@@ -84,8 +84,46 @@ const fitnessTargetsForm = document.querySelector("#fitnessTargetsForm");
 const fitnessTargetsGrid = document.querySelector("#fitnessTargetsGrid");
 const fitnessTargetsStatus = document.querySelector("#fitnessTargetsStatus");
 const targetClub = document.querySelector("#targetClub");
+const slaTrackingForm = document.querySelector("#slaTrackingForm");
+const slaTrackingGrid = document.querySelector("#slaTrackingGrid");
+const slaTrackingStatus = document.querySelector("#slaTrackingStatus");
+const slaClub = document.querySelector("#slaClub");
 let allKpis = fitnessData.kpiGroups.flatMap((group) => group.kpis);
 let savedTargetsByClub = {};
+let slaRecords = {};
+
+const slaGroups = [
+  {
+    title: "Recruitment Pipeline",
+    fields: [
+      { key: "activeCandidates", label: "Active Candidates", type: "number", target: 5, mode: "minimum" },
+      { key: "applicantsContacted48Pct", label: "Applicants Contacted Within 48h", type: "percent", target: 100, mode: "minimum" },
+      { key: "interviews7DaysPct", label: "Shortlist Interviews Within 7 Days", type: "percent", target: 100, mode: "minimum" },
+      { key: "onboarding14DaysPct", label: "Onboarding Within 14 Days", type: "percent", target: 100, mode: "minimum" },
+      { key: "vacancyFillDays", label: "PT Vacancy Fill Days", type: "number", target: 30, mode: "maximum" }
+    ]
+  },
+  {
+    title: "Coach Audits, Training & Program Compliance",
+    fields: [
+      { key: "coachObservations", label: "Coach Observations", type: "number", target: 5, mode: "minimum" },
+      { key: "ptSessionAudits", label: "PT Session Audits", type: "number", target: 3, mode: "minimum" },
+      { key: "groupFitnessAudits", label: "Group Fitness Audits", type: "number", target: 3, mode: "minimum" },
+      { key: "writtenFeedback48Pct", label: "Written Feedback Within 48h", type: "percent", target: 100, mode: "minimum" },
+      { key: "monthlyCoachWorkshops", label: "Monthly Coach Workshops", type: "number", target: 1, mode: "minimum" },
+      { key: "programmingCompliancePct", label: "Programming Compliance", type: "percent", target: 95, mode: "minimum" },
+      { key: "certificationCompliancePct", label: "Coach Certification Compliance", type: "percent", target: 100, mode: "minimum" }
+    ]
+  },
+  {
+    title: "Reporting Compliance",
+    fields: [
+      { key: "weeklyReportOnTimePct", label: "Weekly Reporting On Time", type: "percent", target: 100, mode: "minimum" },
+      { key: "monthlyReportOnTimePct", label: "Monthly Reporting On Time", type: "percent", target: 100, mode: "minimum" }
+    ]
+  }
+];
+const slaFields = slaGroups.flatMap((group) => group.fields);
 
 function row(period, club, actualValues, targetValues, focus) {
   const keys = [
@@ -210,6 +248,8 @@ function initControls() {
   periodFilter.value = `stored:${state.period}`;
   targetClub.innerHTML = fitnessData.clubs.map((club) => `<option value="${escapeHtml(club)}">${escapeHtml(club)}</option>`).join("");
   if (!targetClub.value) targetClub.value = fitnessData.clubs[0] || "";
+  slaClub.innerHTML = fitnessData.clubs.map((club) => `<option value="${escapeHtml(club)}">${escapeHtml(club)}</option>`).join("");
+  if (!slaClub.value) slaClub.value = fitnessData.clubs[0] || "";
 
   const dates = latestWeekInputs();
   fitnessDateFrom.value = dates.dateFrom;
@@ -332,6 +372,7 @@ function renderMetrics() {
   setText("#participationRatio", formatValue(totals.actuals.classParticipationRatio, "percent"));
   setText("#ptPacksSold", formatValue(totals.actuals.ptMmaPacksSold, "number"));
   setText("#kpiHealth", rows.length ? `${greenCount}/${statuses.length}` : "0/0");
+  setText("#slaComplianceMetric", `${formatValue(slaScoreForRows(currentSlaRows()), "percent")}`);
 }
 
 function renderPeriod() {
@@ -543,6 +584,216 @@ function renderActions() {
   }).join("");
 }
 
+function currentSlaRows() {
+  const clubs = isAllClubsSelected() ? fitnessData.clubs : state.clubs;
+  return clubs.filter((club) => club !== "All Clubs").map((club) => slaRowFor(club));
+}
+
+function slaRowFor(club) {
+  const key = slaRecordKey(state.period, club);
+  const stored = slaRecords[key] || {};
+  return {
+    period: state.period,
+    club,
+    actuals: {
+      ...blankSlaActuals(),
+      ...(stored.actuals || {})
+    }
+  };
+}
+
+function blankSlaActuals() {
+  return Object.fromEntries(slaFields.map((field) => [field.key, 0]));
+}
+
+function slaRecordKey(period, club) {
+  return `${period}::${club}`;
+}
+
+function slaStatusFor(value, field) {
+  if (!value && value !== 0) return "pending";
+  if (field.mode === "maximum") {
+    if (!value) return "pending";
+    if (value <= field.target) return "green";
+    if (value <= field.target * 1.1) return "amber";
+    return "red";
+  }
+  if (value >= field.target) return "green";
+  if (value >= field.target * 0.9) return "amber";
+  return "red";
+}
+
+function slaScoreForRows(rows, fields = slaFields) {
+  const statuses = rows.flatMap((row) =>
+    fields.map((field) => slaStatusFor(row.actuals[field.key], field))
+  ).filter((status) => status !== "pending");
+  if (!statuses.length) return 0;
+  const points = statuses.reduce((sum, status) => sum + (status === "green" ? 1 : status === "amber" ? 0.5 : 0), 0);
+  return round1((points / statuses.length) * 100);
+}
+
+function renderRecruitment() {
+  const container = document.querySelector("#recruitmentGrid");
+  const fields = slaGroups[0].fields;
+  container.innerHTML = currentSlaRows().map((row) => renderSlaClubCard(row, fields)).join("") ||
+    `<article class="club-card"><p class="note">No clubs selected.</p></article>`;
+}
+
+function renderCoachCompliance() {
+  const container = document.querySelector("#coachComplianceGrid");
+  const fields = slaGroups[1].fields;
+  container.innerHTML = currentSlaRows().map((row) => renderSlaClubCard(row, fields)).join("") ||
+    `<article class="club-card"><p class="note">No clubs selected.</p></article>`;
+}
+
+function renderSlaCompliance() {
+  const container = document.querySelector("#slaComplianceGrid");
+  const rows = currentSlaRows();
+  if (!rows.length) {
+    container.innerHTML = `<article class="club-card"><p class="note">No clubs selected.</p></article>`;
+    return;
+  }
+
+  container.innerHTML = rows.map((row) => {
+    const score = slaScoreForRows([row]);
+    const status = score >= 90 ? "green" : score >= 75 ? "amber" : "red";
+    return `
+      <article class="club-card">
+        <div class="card-head">
+          <span class="club-name">${escapeHtml(row.club)}</span>
+          <span class="status ${status}">${statusText(status)}</span>
+        </div>
+        <div class="mini-grid">
+          <span><span class="mini-label">SLA Compliance</span><strong class="mini-value">${formatValue(score, "percent")}</strong></span>
+          <span><span class="mini-label">Recruitment</span><strong class="mini-value">${formatValue(slaScoreForRows([row], slaGroups[0].fields), "percent")}</strong></span>
+          <span><span class="mini-label">Audits & Training</span><strong class="mini-value">${formatValue(slaScoreForRows([row], slaGroups[1].fields), "percent")}</strong></span>
+          <span><span class="mini-label">Reporting</span><strong class="mini-value">${formatValue(slaScoreForRows([row], slaGroups[2].fields), "percent")}</strong></span>
+        </div>
+      </article>
+    `;
+  }).join("");
+}
+
+function renderSlaClubCard(row, fields) {
+  const score = slaScoreForRows([row], fields);
+  const status = score >= 90 ? "green" : score >= 75 ? "amber" : "red";
+  return `
+    <article class="club-card">
+      <div class="card-head">
+        <span class="club-name">${escapeHtml(row.club)}</span>
+        <span class="status ${status}">${statusText(status)}</span>
+      </div>
+      <div class="sla-item-grid">
+        ${fields.map((field) => renderSlaMini(row, field)).join("")}
+      </div>
+    </article>
+  `;
+}
+
+function renderSlaMini(row, field) {
+  const value = row.actuals[field.key] || 0;
+  const status = slaStatusFor(value, field);
+  return `
+    <span class="sla-mini">
+      <span class="mini-label">${escapeHtml(field.label)}</span>
+      <strong class="mini-value">${formatValue(value, field.type)}</strong>
+      <span class="target-note">${field.mode === "maximum" ? "Target max" : "Target"} ${formatValue(field.target, field.type)}</span>
+      <span class="status ${status}">${statusText(status)}</span>
+    </span>
+  `;
+}
+
+function renderSlaEditor() {
+  const club = slaClub.value || fitnessData.clubs[0] || "";
+  if (!club || !slaTrackingGrid) return;
+  const row = slaRowFor(club);
+  slaTrackingGrid.innerHTML = slaGroups.map((group) => `
+    <section class="target-group">
+      <h3>${escapeHtml(group.title)}</h3>
+      <div class="target-input-grid">
+        ${group.fields.map((field) => renderSlaInput(field, row.actuals[field.key])).join("")}
+      </div>
+    </section>
+  `).join("");
+}
+
+function renderSlaInput(field, value) {
+  const suffix = field.type === "percent" ? "%" : "";
+  return `
+    <label class="target-input-card">
+      <span>${escapeHtml(field.label)}</span>
+      <div class="target-input-shell">
+        <input
+          type="number"
+          min="0"
+          step="${field.type === "percent" ? "0.1" : "1"}"
+          name="${escapeHtml(field.key)}"
+          value="${Number(value || 0)}"
+          inputmode="decimal"
+          required
+        >
+        ${suffix ? `<b>${suffix}</b>` : ""}
+      </div>
+      <small>${field.mode === "maximum" ? "Maximum" : "Minimum"} ${formatValue(field.target, field.type)}</small>
+    </label>
+  `;
+}
+
+function selectedSlaValues() {
+  const formData = new FormData(slaTrackingForm);
+  return Object.fromEntries(slaFields.map((field) => {
+    const raw = formData.get(field.key);
+    return [field.key, raw === null || raw === "" ? 0 : Number(raw)];
+  }));
+}
+
+async function loadFitnessSla() {
+  try {
+    const response = await fetch("/api/fitness-sla", { headers: { "Accept": "application/json" } });
+    if (!response.ok) throw new Error(`Fitness SLA tracking returned ${response.status}`);
+    const payload = await response.json();
+    slaRecords = payload.records || {};
+  } catch (error) {
+    console.warn("Fitness SLA tracking could not load.", error);
+  }
+}
+
+async function saveFitnessSla() {
+  const button = slaTrackingForm.querySelector("button");
+  const originalText = button.textContent;
+  const period = fitnessData.periods.find((item) => item.id === state.period) || {};
+  button.disabled = true;
+  button.textContent = "Saving...";
+  slaTrackingStatus.textContent = "Saving SLA tracking...";
+
+  try {
+    const response = await fetch("/api/fitness-sla", {
+      method: "POST",
+      headers: {
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        period: state.period,
+        periodLabel: period.label || state.period,
+        periodRange: period.range || "",
+        club: slaClub.value,
+        actuals: selectedSlaValues()
+      })
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(errorText(payload.error || `HTTP ${response.status}`));
+    slaRecords = payload.records || {};
+    render();
+    slaTrackingStatus.textContent = `SLA tracking saved for ${slaClub.value}.`;
+  } catch (error) {
+    slaTrackingStatus.textContent = errorText(error);
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
+  }
+}
+
 function renderTargetsEditor() {
   const club = targetClub.value || fitnessData.clubs[0] || "";
   const item = fitnessData.rows.find((row) => row.club === club && row.period === state.period)
@@ -671,6 +922,10 @@ function render() {
   renderParticipation();
   renderPtRevenue();
   renderRentCosts();
+  renderRecruitment();
+  renderCoachCompliance();
+  renderSlaCompliance();
+  renderSlaEditor();
   renderTargetsEditor();
   renderActions();
 }
@@ -707,6 +962,16 @@ targetClub.addEventListener("change", () => {
   fitnessTargetsStatus.textContent = "";
 });
 
+slaTrackingForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  saveFitnessSla();
+});
+
+slaClub.addEventListener("change", () => {
+  renderSlaEditor();
+  slaTrackingStatus.textContent = "";
+});
+
 periodFilter.addEventListener("change", async () => {
   await handlePeriodChange();
 });
@@ -739,6 +1004,7 @@ async function loadFitnessData() {
     allKpis = fitnessData.kpiGroups.flatMap((group) => group.kpis);
     state.period = fitnessData.periods[0]?.id || state.period;
     await loadFitnessTargets();
+    await loadFitnessSla();
     if (payload.rows.length) {
       state.connection = "live";
       return;
@@ -900,6 +1166,7 @@ function errorText(error) {
 
 async function init() {
   await loadFitnessData();
+  await loadFitnessSla();
   initControls();
   render();
   window.dashboardAuth?.ready?.then(logFitnessDashboardView);

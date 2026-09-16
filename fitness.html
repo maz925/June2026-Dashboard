@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>UFC GYM Fitness Dashboard</title>
-  <link rel="stylesheet" href="styles.css?v=2026-09-10-fitness">
+  <link rel="stylesheet" href="styles.css?v=2026-09-16-sla">
 </head>
 <body class="fitness-theme">
   <header class="topbar">
@@ -38,6 +38,9 @@
         <button class="tab" type="button" data-view="participation">Participation</button>
         <button class="tab" type="button" data-view="ptRevenue">PT Revenue</button>
         <button class="tab" type="button" data-view="rentCosts">Rent & Costs</button>
+        <button class="tab" type="button" data-view="recruitment">Recruitment</button>
+        <button class="tab" type="button" data-view="coachCompliance">Audits & Training</button>
+        <button class="tab" type="button" data-view="slaCompliance">SLA Score</button>
         <button class="tab" type="button" data-view="targets">Targets</button>
         <button class="tab" type="button" data-view="actions">Actions</button>
       </div>
@@ -63,6 +66,10 @@
       <article>
         <span>KPI Health</span>
         <strong id="kpiHealth"></strong>
+      </article>
+      <article>
+        <span>SLA Compliance</span>
+        <strong id="slaComplianceMetric"></strong>
       </article>
     </section>
 
@@ -172,6 +179,45 @@
       </div>
     </section>
 
+    <section class="view" id="recruitmentView">
+      <div class="section-heading">
+        <h2>Recruitment Pipeline</h2>
+        <p>Tracks candidate pipeline, recruitment response standards and vacancy fill speed.</p>
+      </div>
+      <div class="summary-grid" id="recruitmentGrid"></div>
+    </section>
+
+    <section class="view" id="coachComplianceView">
+      <div class="section-heading">
+        <h2>Coach Audits, Training & Program Compliance</h2>
+        <p>Tracks coach observations, session audits, workshops and programming compliance.</p>
+      </div>
+      <div class="summary-grid" id="coachComplianceGrid"></div>
+    </section>
+
+    <section class="view" id="slaComplianceView">
+      <div class="section-heading">
+        <h2>SLA Compliance Score</h2>
+        <p>Weekly or monthly SLA completion score by club.</p>
+      </div>
+      <div class="summary-grid" id="slaComplianceGrid"></div>
+      <form id="slaTrackingForm" class="target-editor sla-editor">
+        <div class="section-heading compact-heading">
+          <h2>Update SLA Tracking</h2>
+          <p>Enter the latest SLA completion numbers for the selected club and period.</p>
+        </div>
+        <label class="filter target-club-picker">
+          <span>Club</span>
+          <select id="slaClub"></select>
+        </label>
+        <div class="target-editor-grid" id="slaTrackingGrid"></div>
+        <div class="target-editor-actions">
+          <button class="download-button" type="submit">Save SLA Tracking</button>
+          <p class="form-status" id="slaTrackingStatus" role="status"></p>
+        </div>
+      </form>
+    </section>
+
     <section class="view" id="targetsView">
       <div class="section-heading">
         <h2>Fitness KPI Targets</h2>
@@ -199,6 +245,6 @@
     </section>
   </main>
 
-  <script src="fitness.js?v=2026-09-10-targets"></script>
+  <script src="fitness.js?v=2026-09-16-sla"></script>
 </body>
 </html>

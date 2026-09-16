@@ -607,6 +607,43 @@ input[type="password"] {
   margin: 0;
 }
 
+.sla-editor {
+  margin-top: 18px;
+}
+
+.compact-heading {
+  margin-bottom: 0;
+}
+
+.sla-item-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.sla-mini {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px 10px;
+  align-items: center;
+  min-height: 94px;
+  padding: 12px;
+  border: 1px solid #e4e8ee;
+  border-radius: 8px;
+  background: #fafbfc;
+}
+
+.sla-mini .mini-label,
+.sla-mini .mini-value,
+.sla-mini .target-note {
+  grid-column: 1 / -1;
+}
+
+.sla-mini .status {
+  justify-self: start;
+}
+
 .view {
   display: none;
 }
@@ -1077,6 +1114,7 @@ tr:last-child td {
   .cancellation-panel,
   .fitness-kpi-grid,
   .target-input-grid,
+  .sla-item-grid,
   .summary-grid,
   .latest-grid,
   .target-grid {
@@ -1100,6 +1138,7 @@ tr:last-child td {
   .cancellation-panel,
   .fitness-kpi-grid,
   .target-input-grid,
+  .sla-item-grid,
   .summary-grid,
   .latest-grid,
   .target-grid {
