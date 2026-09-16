@@ -7,6 +7,7 @@ const {
 const FITNESS_METRICS_VERSION = "fitness-metrics-hapana-v1-2026-09-10";
 const STORAGE_PATH = "fitness-metrics.json";
 const TARGETS_STORAGE_PATH = "fitness-targets.json";
+const WEEKLY_REVENUE_STORAGE_PATH = "weekly-revenue.json";
 const TIME_ZONE = "Australia/Sydney";
 
 const LOCATIONS = [
@@ -83,7 +84,7 @@ module.exports = async function handler(request, response) {
 
     assertCronAccess(request);
 
-    const window = weekWindow(url.searchParams);
+    const window = await fitnessWindow(url.searchParams);
     const targetLocations = locationsForRequest(url.searchParams);
     const existing = await loadStoredFitnessMetrics();
     const targetOverrides = await loadStoredFitnessTargets();
@@ -161,7 +162,7 @@ function emptyPayload() {
   return buildPayload({
     rows: [],
     failures: [],
-    window: weekWindow(new URLSearchParams())
+    window: fallbackWeekWindow()
   });
 }
 
@@ -392,12 +393,27 @@ function locationsForRequest(params) {
   );
 }
 
-function weekWindow(params) {
+async function fitnessWindow(params) {
   const explicitFrom = params.get("date_from");
   const explicitTo = params.get("date_to");
   const periodMode = params.get("period_mode") || (explicitFrom && explicitTo ? "custom" : "week");
   if (explicitFrom && explicitTo) return windowFromDates(explicitFrom, explicitTo, periodMode);
 
+  const ddWindow = await loadDdWeekWindow();
+  if (ddWindow) return windowFromDates(ddWindow.dateFrom, ddWindow.dateTo, "week");
+
+  return fallbackWeekWindow();
+}
+
+async function loadDdWeekWindow() {
+  const result = await get(WEEKLY_REVENUE_STORAGE_PATH, { access: "private", useCache: false }).catch(() => null);
+  if (!result || result.statusCode !== 200 || !result.stream) return null;
+  const payload = await new Response(result.stream).json().catch(() => null);
+  if (!payload?.dateFrom || !payload?.dateTo) return null;
+  return { dateFrom: payload.dateFrom, dateTo: payload.dateTo };
+}
+
+function fallbackWeekWindow() {
   const today = sydneyCalendarDate();
   const day = today.getUTCDay();
   const daysSinceThursday = (day - 4 + 7) % 7;

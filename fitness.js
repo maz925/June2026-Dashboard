@@ -256,6 +256,19 @@ function initControls() {
   fitnessDateTo.value = dates.dateTo;
 }
 
+async function syncFitnessDatesWithDdWeek() {
+  try {
+    const response = await fetch("/api/hapana", { headers: { "Accept": "application/json" } });
+    if (!response.ok) throw new Error(`DD week returned ${response.status}`);
+    const payload = await response.json();
+    if (!payload.dateFrom || !payload.dateTo) return;
+    fitnessDateFrom.value = inputDateFromHapana(payload.dateFrom);
+    fitnessDateTo.value = inputDateFromHapana(payload.dateTo);
+  } catch (error) {
+    console.warn("DD week dates could not load for Fitness refresh defaults.", error);
+  }
+}
+
 function syncClubSelection() {
   const values = [...clubFilter.selectedOptions].map((option) => option.value);
   state.clubs = !values.length || values.includes("All Clubs") ? ["All Clubs"] : values;
@@ -1147,6 +1160,11 @@ function toHapanaDate(value) {
   return `${day}/${month}/${year}`;
 }
 
+function inputDateFromHapana(value) {
+  const [day, month, year] = String(value || "").split("/");
+  return `${year}-${month}-${day}`;
+}
+
 function addDays(date, days) {
   const next = new Date(date);
   next.setDate(next.getDate() + days);
@@ -1168,6 +1186,7 @@ async function init() {
   await loadFitnessData();
   await loadFitnessSla();
   initControls();
+  await syncFitnessDatesWithDdWeek();
   render();
   window.dashboardAuth?.ready?.then(logFitnessDashboardView);
 }
