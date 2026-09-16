@@ -88,9 +88,6 @@ module.exports = async function handler(request, response) {
     const targetLocations = locationsForRequest(url.searchParams);
     const existing = await loadStoredFitnessMetrics();
     const targetOverrides = await loadStoredFitnessTargets();
-    const previousRows = existing.rows.filter((row) =>
-      row.period !== window.period || targetLocations.every((location) => location.club !== row.club)
-    );
     const rows = [];
     const failures = [];
 
@@ -106,6 +103,11 @@ module.exports = async function handler(request, response) {
         failures.push({ club, error: errorText(error) });
       }
     }
+
+    const successfulClubs = new Set(rows.map((row) => row.club));
+    const previousRows = existing.rows.filter((row) =>
+      !samePeriodWindow(row, window) || !successfulClubs.has(row.club)
+    );
 
     if (!rows.length && !previousRows.length) {
       throw new Error(`No Fitness KPI rows were calculated. Failures: ${JSON.stringify(failures)}`);
@@ -439,10 +441,17 @@ function windowFromDates(dateFrom, dateTo, periodMode = "week") {
 }
 
 function periodId(periodMode, startIso, endIso) {
-  if (periodMode === "week") return `week-${endIso}`;
+  if (periodMode === "week") return endIso;
   if (periodMode === "month") return `month-${startIso}-${endIso}`;
   if (periodMode === "mtd") return `mtd-${startIso}-${endIso}`;
   return `custom-${startIso}-${endIso}`;
+}
+
+function samePeriodWindow(row, window) {
+  if (row.period === window.period) return true;
+  return row.periodMode === window.periodMode
+    && row.dateFrom === window.dateFrom
+    && row.dateTo === window.dateTo;
 }
 
 function periodLabel(periodMode, start, end) {
