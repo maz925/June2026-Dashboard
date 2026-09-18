@@ -272,7 +272,7 @@ async function refreshPosMetrics() {
 }
 
 function topProducts(row) {
-  return Array.isArray(row.topProducts) ? row.topProducts.slice(0, 3) : [];
+  return Array.isArray(row.topProducts) ? row.topProducts.slice(0, 5) : [];
 }
 
 function visiblePeriod() {

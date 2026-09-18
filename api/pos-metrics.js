@@ -170,7 +170,7 @@ function summarisePosCsv(csv, { club, dateFrom, dateTo, periodMode }) {
 
   const topProducts = [...products.values()]
     .sort((a, b) => b.quantity - a.quantity || b.sales - a.sales || a.name.localeCompare(b.name))
-    .slice(0, 3);
+    .slice(0, 5);
 
   return {
     club,
