@@ -199,6 +199,8 @@ function renderDetail() {
         <td>${formatProduct(products[0])}</td>
         <td>${formatProduct(products[1])}</td>
         <td>${formatProduct(products[2])}</td>
+        <td>${formatProduct(products[3])}</td>
+        <td>${formatProduct(products[4])}</td>
         <td>${number.format(row.transactionCount || 0)}</td>
       </tr>
     `;
