@@ -294,7 +294,7 @@ async function optionalParticipationMetrics({ location, window }) {
       reportType: process.env.HAPANA_FITNESS_CHECKIN_REPORT_TYPE || "client",
       extraParams: paramsFromEnv("HAPANA_FITNESS_CHECKIN_PARAMS")
     });
-    metrics.totalCheckins = countRows(parseDelimited(csv));
+    metrics.totalCheckins = sumCheckinRows(parseDelimited(csv));
   }
 
   return metrics;
@@ -390,6 +390,22 @@ function countRows(rows) {
 function sumAttendanceRows(rows) {
   const total = rows.reduce((sum, row) =>
     sum + numberValue(field(row, ["Attendances", "Attendance", "Attended", "Total Attendances"])), 0);
+  return total || countRows(rows);
+}
+
+function sumCheckinRows(rows) {
+  const total = rows.reduce((sum, row) =>
+    sum + numberValue(field(row, [
+      "Total Attendance Count",
+      "Total Sessions with Attendance",
+      "Total Check-ins",
+      "Total Checkins",
+      "Check-ins",
+      "Checkins",
+      "Attendance Count",
+      "Attendances",
+      "Attendance"
+    ])), 0);
   return total || countRows(rows);
 }
 

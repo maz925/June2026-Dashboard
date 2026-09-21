@@ -103,6 +103,14 @@ module.exports = async function handler(request, response) {
         filters,
         reportLinks: extractReportLinks(reportsHtml),
         fields: extractRelevantReportFields(reportsHtml),
+        snippets: extractDebugSnippets(reportsHtml, [
+          "Client Check-In",
+          "Summary by Client",
+          "Total Attendance Count",
+          "show_general_checkin",
+          "Recent Attendees",
+          "Total Sessions with Attendance"
+        ]),
         text: textSnippet(reportsHtml)
       });
       return;
@@ -584,6 +592,24 @@ function extractRelevantReportFields(html) {
   }
 
   return fields.slice(0, 80);
+}
+
+function extractDebugSnippets(html, terms) {
+  const source = String(html || "");
+  const output = [];
+  for (const term of terms) {
+    const index = source.toLowerCase().indexOf(term.toLowerCase());
+    if (index < 0) continue;
+    const snippet = source.slice(Math.max(0, index - 1200), index + 1800);
+    output.push({
+      term,
+      text: textSnippet(snippet),
+      html: decodeHtml(snippet).replace(/\s+/g, " ").slice(0, 3000),
+      filters: [...new Set(snippet.match(/get[A-Za-z0-9_]+/g) || [])],
+      query: queryParamsFromText(snippet)
+    });
+  }
+  return output;
 }
 
 function decodeHtml(value) {
