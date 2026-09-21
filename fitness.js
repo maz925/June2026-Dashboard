@@ -112,8 +112,7 @@ const slaGroups = [
       { key: "groupFitnessAudits", label: "Group Fitness Audits", type: "number", target: 3, mode: "minimum" },
       { key: "writtenFeedback48Pct", label: "Written Feedback Within 48h", type: "percent", target: 100, mode: "minimum" },
       { key: "monthlyCoachWorkshops", label: "Monthly Coach Workshops", type: "number", target: 1, mode: "minimum" },
-      { key: "programmingCompliancePct", label: "Programming Compliance", type: "percent", target: 95, mode: "minimum" },
-      { key: "certificationCompliancePct", label: "Coach Certification Compliance", type: "percent", target: 100, mode: "minimum" }
+      { key: "programmingCompliancePct", label: "Programming Compliance", type: "percent", target: 95, mode: "minimum" }
     ]
   },
   {

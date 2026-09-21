@@ -16,7 +16,6 @@ const SLA_KEYS = [
   "writtenFeedback48Pct",
   "monthlyCoachWorkshops",
   "programmingCompliancePct",
-  "certificationCompliancePct",
   "weeklyReportOnTimePct",
   "monthlyReportOnTimePct"
 ];
