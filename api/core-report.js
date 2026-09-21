@@ -108,6 +108,13 @@ module.exports = async function handler(request, response) {
           "Summary by Client",
           "Total Attendance Count",
           "show_general_checkin",
+          "user_attandance",
+          "booked_session",
+          "last_attendance_date",
+          "getThirdOptionUpdated",
+          "updateChildList",
+          "dat6",
+          "child_selection",
           "Recent Attendees",
           "Total Sessions with Attendance"
         ]),
