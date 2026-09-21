@@ -525,7 +525,7 @@ function extractReportLinks(html) {
   }
 
   const plain = decodeHtml(source.replace(/<script[\s\S]*?<\/script>/gi, "").replace(/\s+/g, " "));
-  for (const term of ["Attendance by Session", "Attendance", "Utilization", "Session"]) {
+  for (const term of ["Client Check-In", "Summary by Client", "Total Attendance Count", "Attendance by Session", "Attendance", "Utilization", "Session", "Check-In", "Check In"]) {
     const index = plain.toLowerCase().indexOf(term.toLowerCase());
     if (index >= 0) {
       const snippet = plain.slice(Math.max(0, index - 500), index + 900);
@@ -551,7 +551,7 @@ function queryParamsFromText(value) {
 
 function extractRelevantReportFields(html) {
   const fields = [];
-  const relevant = /(status|suspend|active|cancel|package|membership|member|client|filter)/i;
+  const relevant = /(status|suspend|active|cancel|package|membership|member|client|filter|report|summary|attendance|check|visit|session)/i;
 
   for (const input of String(html || "").match(/<input\b[^>]*>/gi) || []) {
     const field = {
