@@ -29,7 +29,7 @@ let fitnessData = {
     {
       title: "PT Packs Sold / PT Sessions Split Revenue",
       kpis: [
-        { key: "ptMmaPacksSold", label: "Number PT/MMA Packs Sold This Week", type: "number", target: "minimum" },
+        { key: "ptMmaPacksSold", label: "PT Packs Sold", type: "number", target: "minimum" },
         { key: "paidPtSessions", label: "Paid PT Sessions Performed", type: "number", target: "minimum" },
         { key: "posRevenue", label: "Total Revenue Collected at POS", type: "money", target: "minimum" },
         { key: "sessionSplitIncome", label: "Total Revenue from Sessions-Split Income", type: "money", target: "minimum" }
