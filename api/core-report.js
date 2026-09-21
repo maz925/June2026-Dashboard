@@ -614,7 +614,7 @@ function extractDebugSnippets(html, terms) {
     output.push({
       term,
       text: textSnippet(snippet),
-      html: decodeHtml(snippet).replace(/\s+/g, " ").slice(0, 3000),
+      html: decodeHtml(snippet).replace(/\s+/g, " ").slice(0, 9000),
       filters: [...new Set(snippet.match(/get[A-Za-z0-9_]+/g) || [])],
       query: queryParamsFromText(snippet)
     });
