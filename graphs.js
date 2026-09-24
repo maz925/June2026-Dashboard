@@ -1,6 +1,9 @@
-const GRAPHS_APP_VERSION = "revenue-graphs-comparison-table-v6-2026-09-25";
+const GRAPHS_APP_VERSION = "revenue-graphs-woolooware-opening-v7-2026-09-25";
 const CLUB_ORDER = ["Bankstown", "Wetherill Park", "580G", "Woolooware"];
 const PRODUCTION_REVENUE_ENDPOINT = "https://ufcgym-dashboard-june2026.vercel.app/api/hapana";
+const CLUB_YOY_START_DATES = {
+  Woolooware: "2025-06-01"
+};
 
 let data = window.TRACKER_DATA || { rolling: [], source: "Workbook data", updated: null };
 
@@ -201,8 +204,9 @@ function renderClubGraph(club, rows, graphType) {
   const chartRows = isCumulative
     ? (isYoy ? cumulativeYoyRows(comparison.rows) : cumulativeRows(weeklyRows))
     : (isYoy ? comparison.rows : weeklyRows);
-  const ddTotal = rows.reduce((sum, row) => sum + (row.ddActual || 0), 0);
-  const posTotal = rows.reduce((sum, row) => sum + (row.posActual || 0), 0);
+  const summaryRows = isYoy ? comparison.rows : rows;
+  const ddTotal = summaryRows.reduce((sum, row) => sum + (row.ddActual || 0), 0);
+  const posTotal = summaryRows.reduce((sum, row) => sum + (row.posActual || 0), 0);
   const currentYear = parseDate(rows[rows.length - 1].weekEnding).getFullYear();
   const series = isYoy
     ? [
@@ -228,6 +232,9 @@ function renderClubGraph(club, rows, graphType) {
         <p>${formatMoney(ddTotal)} DD | ${formatMoney(posTotal)} POS | ${ddTotal ? number.format((posTotal / ddTotal) * 100) : "0"}% POS</p>
       </div>
       <div class="trend-chart">${chart}</div>
+      ${isYoy && comparison.startDate ? `
+        <p class="trend-comparison-note">YoY comparison begins with the June 2025 opening period.</p>
+      ` : ""}
       ${isYoy && !comparison.hasPriorData ? `
         <p class="trend-notice">${currentYear - 1} revenue history is not stored yet. The dashed comparison lines will appear after the Hapana history is backfilled.</p>
       ` : ""}
@@ -274,7 +281,7 @@ function renderComparisonTable() {
   body.innerHTML = rows.join("");
   setText(
     "#comparisonPeriod",
-    `${currentYear} YTD is compared with the matched ${priorYear} reporting weeks for the selected clubs.`
+    `${currentYear} YTD is compared with the matched ${priorYear} reporting weeks. Woolooware uses June onward to match its June 2025 opening.`
   );
 }
 
@@ -366,19 +373,22 @@ function cumulativeRows(rows) {
 function yoyRows(club, currentRows) {
   const allClubRows = (data.rolling || []).filter((row) => row.club === club && hasRevenue(row));
   const byWeek = new Map(allClubRows.map((row) => [row.weekEnding, row]));
+  const startDate = CLUB_YOY_START_DATES[club] || null;
   let hasPriorData = false;
-  const rows = currentRows.map((row) => {
-    const priorWeek = shiftIsoDate(row.weekEnding, -364);
-    const prior = byWeek.get(priorWeek);
-    if (prior) hasPriorData = true;
-    return {
-      ...row,
-      priorWeek,
-      priorDD: prior?.ddActual ?? null,
-      priorPOS: prior?.posActual ?? null
-    };
-  });
-  return { rows, hasPriorData };
+  const rows = currentRows
+    .map((row) => {
+      const priorWeek = shiftIsoDate(row.weekEnding, -364);
+      const prior = byWeek.get(priorWeek);
+      return {
+        ...row,
+        priorWeek,
+        priorDD: prior?.ddActual ?? null,
+        priorPOS: prior?.posActual ?? null
+      };
+    })
+    .filter((row) => !startDate || row.priorWeek >= startDate);
+  hasPriorData = rows.some((row) => row.priorDD !== null || row.priorPOS !== null);
+  return { rows, hasPriorData, startDate };
 }
 
 function cumulativeYoyRows(rows) {
