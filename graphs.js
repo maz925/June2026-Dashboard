@@ -1,4 +1,4 @@
-const GRAPHS_APP_VERSION = "revenue-graphs-yoy-v2-2026-09-24";
+const GRAPHS_APP_VERSION = "revenue-graphs-separated-v3-2026-09-24";
 const CLUB_ORDER = ["Bankstown", "Wetherill Park", "580G", "Woolooware"];
 
 let data = window.TRACKER_DATA || { rolling: [], source: "Workbook data", updated: null };
@@ -155,28 +155,28 @@ function renderPeriod() {
 }
 
 function renderGraphs() {
-  const container = document.querySelector("#graphGrid");
+  const ytdContainer = document.querySelector("#ytdGraphGrid");
+  const yoyContainer = document.querySelector("#yoyGraphGrid");
   const rows = ytdRows();
   const clubs = selectedClubNames();
-  const isYoy = state.displayMode.startsWith("yoy-");
-
-  setText("#graphHeading", isYoy ? "Year-on-Year DD and POS by Club" : "YTD DD and POS by Club");
-  setText(
-    "#graphDescription",
-    isYoy
-      ? "Each current reporting week is compared with the equivalent week 364 days earlier."
-      : "Weekly Hapana revenue rows from the start of the calendar year to the latest stored week."
-  );
 
   if (!rows.length) {
-    container.innerHTML = `<article class="graph-card"><p class="trend-empty">No YTD revenue rows are available yet.</p></article>`;
+    const empty = `<article class="graph-card"><p class="trend-empty">No YTD revenue rows are available yet.</p></article>`;
+    ytdContainer.innerHTML = empty;
+    yoyContainer.innerHTML = empty;
     return;
   }
 
-  container.innerHTML = clubs.map((club) => renderClubGraph(club, rows.filter((row) => row.club === club))).join("");
+  ytdContainer.innerHTML = clubs
+    .map((club) => renderClubGraph(club, rows.filter((row) => row.club === club), "ytd"))
+    .join("");
+  yoyContainer.innerHTML = clubs
+    .map((club) => renderClubGraph(club, rows.filter((row) => row.club === club), "yoy"))
+    .join("");
 }
 
-function renderClubGraph(club, rows) {
+function renderClubGraph(club, rows, graphType) {
+  const isYoy = graphType === "yoy";
   if (!rows.length) {
     return `
       <article class="graph-card">
@@ -190,8 +190,7 @@ function renderClubGraph(club, rows) {
   }
 
   const weeklyRows = fillMissingWeeks(rows);
-  const isYoy = state.displayMode.startsWith("yoy-");
-  const isCumulative = state.displayMode === "cumulative" || state.displayMode === "yoy-cumulative";
+  const isCumulative = state.displayMode === "cumulative";
   const comparison = isYoy ? yoyRows(club, weeklyRows) : null;
   const chartRows = isCumulative
     ? (isYoy ? cumulativeYoyRows(comparison.rows) : cumulativeRows(weeklyRows))

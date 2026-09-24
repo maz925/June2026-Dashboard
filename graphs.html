@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>UFC GYM Revenue Graphs</title>
-  <link rel="stylesheet" href="styles.css?v=2026-09-24-graphs-yoy">
+  <link rel="stylesheet" href="styles.css?v=2026-09-24-graphs-separated">
 </head>
 <body class="graphs-theme">
   <header class="topbar">
@@ -37,8 +37,6 @@
         <select id="displayMode">
           <option value="weekly">Weekly actuals</option>
           <option value="cumulative">Cumulative YTD</option>
-          <option value="yoy-weekly">YoY weekly</option>
-          <option value="yoy-cumulative">YoY cumulative</option>
         </select>
       </label>
     </section>
@@ -75,16 +73,24 @@
 
     <section class="view active">
       <div class="section-heading">
-        <h2 id="graphHeading">YTD DD and POS by Club</h2>
-        <p id="graphDescription">Weekly Hapana revenue rows from the start of the calendar year to the latest stored week.</p>
+        <h2>YTD DD and POS by Club</h2>
+        <p>Weekly Hapana revenue rows from the start of the calendar year to the latest stored week.</p>
       </div>
-      <div class="graph-grid" id="graphGrid"></div>
+      <div class="graph-grid" id="ytdGraphGrid"></div>
+    </section>
+
+    <section class="view active graph-section">
+      <div class="section-heading">
+        <h2>Year-on-Year DD and POS by Club</h2>
+        <p>Each current reporting week is compared with the equivalent week 364 days earlier.</p>
+      </div>
+      <div class="graph-grid" id="yoyGraphGrid"></div>
     </section>
   </main>
 
   <script src="tracker-data.js?v=2026-08-18-reporting-cycle"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="auth.js"></script>
-  <script src="graphs.js?v=2026-09-24-graphs-yoy"></script>
+  <script src="graphs.js?v=2026-09-24-graphs-separated"></script>
 </body>
 </html>

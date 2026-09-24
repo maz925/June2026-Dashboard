@@ -810,6 +810,10 @@ input[type="password"] {
   gap: 16px;
 }
 
+.graph-section {
+  margin-top: 24px;
+}
+
 .graph-card {
   padding: 16px;
   border: 1px solid var(--line);
