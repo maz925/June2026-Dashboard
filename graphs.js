@@ -1,4 +1,4 @@
-const GRAPHS_APP_VERSION = "revenue-graphs-ytd-v1-2026-09-24";
+const GRAPHS_APP_VERSION = "revenue-graphs-yoy-v2-2026-09-24";
 const CLUB_ORDER = ["Bankstown", "Wetherill Park", "580G", "Woolooware"];
 
 let data = window.TRACKER_DATA || { rolling: [], source: "Workbook data", updated: null };
@@ -158,6 +158,15 @@ function renderGraphs() {
   const container = document.querySelector("#graphGrid");
   const rows = ytdRows();
   const clubs = selectedClubNames();
+  const isYoy = state.displayMode.startsWith("yoy-");
+
+  setText("#graphHeading", isYoy ? "Year-on-Year DD and POS by Club" : "YTD DD and POS by Club");
+  setText(
+    "#graphDescription",
+    isYoy
+      ? "Each current reporting week is compared with the equivalent week 364 days earlier."
+      : "Weekly Hapana revenue rows from the start of the calendar year to the latest stored week."
+  );
 
   if (!rows.length) {
     container.innerHTML = `<article class="graph-card"><p class="trend-empty">No YTD revenue rows are available yet.</p></article>`;
@@ -181,16 +190,30 @@ function renderClubGraph(club, rows) {
   }
 
   const weeklyRows = fillMissingWeeks(rows);
-  const chartRows = state.displayMode === "cumulative" ? cumulativeRows(weeklyRows) : weeklyRows;
+  const isYoy = state.displayMode.startsWith("yoy-");
+  const isCumulative = state.displayMode === "cumulative" || state.displayMode === "yoy-cumulative";
+  const comparison = isYoy ? yoyRows(club, weeklyRows) : null;
+  const chartRows = isCumulative
+    ? (isYoy ? cumulativeYoyRows(comparison.rows) : cumulativeRows(weeklyRows))
+    : (isYoy ? comparison.rows : weeklyRows);
   const ddTotal = rows.reduce((sum, row) => sum + (row.ddActual || 0), 0);
   const posTotal = rows.reduce((sum, row) => sum + (row.posActual || 0), 0);
+  const currentYear = parseDate(rows[rows.length - 1].weekEnding).getFullYear();
+  const series = isYoy
+    ? [
+        { key: "ddActual", label: `${currentYear} DD`, color: "#17202a" },
+        { key: "priorDD", label: `${currentYear - 1} DD`, color: "#6b7280", dash: "10 7" },
+        { key: "posActual", label: `${currentYear} POS`, color: "#17834f" },
+        { key: "priorPOS", label: `${currentYear - 1} POS`, color: "#73b892", dash: "10 7" }
+      ]
+    : [
+        { key: "ddActual", label: "DD", color: "#17202a" },
+        { key: "posActual", label: "POS", color: "#17834f" }
+      ];
   const chart = lineChart({
     rows: chartRows,
-    series: [
-      { key: "ddActual", label: "DD", color: "#17202a" },
-      { key: "posActual", label: "POS", color: "#17834f" }
-    ],
-    title: `${club} ${state.displayMode === "cumulative" ? "cumulative YTD" : "weekly YTD"} DD and POS`
+    series,
+    title: `${club} ${isYoy ? "year-on-year" : "YTD"} ${isCumulative ? "cumulative" : "weekly"} DD and POS`
   });
 
   return `
@@ -200,6 +223,9 @@ function renderClubGraph(club, rows) {
         <p>${formatMoney(ddTotal)} DD | ${formatMoney(posTotal)} POS | ${ddTotal ? number.format((posTotal / ddTotal) * 100) : "0"}% POS</p>
       </div>
       <div class="trend-chart">${chart}</div>
+      ${isYoy && !comparison.hasPriorData ? `
+        <p class="trend-notice">${currentYear - 1} revenue history is not stored yet. The dashed comparison lines will appear after the Hapana history is backfilled.</p>
+      ` : ""}
     </article>
   `;
 }
@@ -224,13 +250,51 @@ function cumulativeRows(rows) {
   });
 }
 
+function yoyRows(club, currentRows) {
+  const allClubRows = (data.rolling || []).filter((row) => row.club === club && hasRevenue(row));
+  const byWeek = new Map(allClubRows.map((row) => [row.weekEnding, row]));
+  let hasPriorData = false;
+  const rows = currentRows.map((row) => {
+    const priorWeek = shiftIsoDate(row.weekEnding, -364);
+    const prior = byWeek.get(priorWeek);
+    if (prior) hasPriorData = true;
+    return {
+      ...row,
+      priorWeek,
+      priorDD: prior?.ddActual ?? null,
+      priorPOS: prior?.posActual ?? null
+    };
+  });
+  return { rows, hasPriorData };
+}
+
+function cumulativeYoyRows(rows) {
+  let ddActual = 0;
+  let posActual = 0;
+  let priorDD = 0;
+  let priorPOS = 0;
+  return rows.map((row) => {
+    ddActual += row.ddActual || 0;
+    posActual += row.posActual || 0;
+    if (row.priorDD !== null) priorDD += row.priorDD || 0;
+    if (row.priorPOS !== null) priorPOS += row.priorPOS || 0;
+    return {
+      ...row,
+      ddActual,
+      posActual,
+      priorDD: row.priorDD === null && priorDD === 0 ? null : priorDD,
+      priorPOS: row.priorPOS === null && priorPOS === 0 ? null : priorPOS
+    };
+  });
+}
+
 function lineChart({ rows, series, title }) {
   const width = 980;
   const height = 320;
   const pad = { top: 20, right: 34, bottom: 54, left: 84 };
   const plotWidth = width - pad.left - pad.right;
   const plotHeight = height - pad.top - pad.bottom;
-  const maxValue = Math.max(1, ...rows.flatMap((row) => series.map((item) => row[item.key] || 0)));
+  const maxValue = Math.max(1, ...rows.flatMap((row) => series.map((item) => numericValue(row[item.key]))));
   const yStep = yTickStep(maxValue);
   const yMax = Math.max(yStep, Math.ceil(maxValue / yStep) * yStep);
   const x = (index) => pad.left + (rows.length === 1 ? plotWidth / 2 : (index / (rows.length - 1)) * plotWidth);
@@ -248,18 +312,26 @@ function lineChart({ rows, series, title }) {
   `).join("");
 
   const paths = series.map((item) => {
-    const path = rows.map((row, index) => `${index === 0 ? "M" : "L"} ${x(index)},${y(row[item.key] || 0)}`).join(" ");
-    const dots = rows.map((row, index) => `
-      <circle class="trend-dot" cx="${x(index)}" cy="${y(row[item.key] || 0)}" r="3.5" fill="${item.color}">
-        <title>${escapeHtml(item.label)} ${dateFormat.format(parseDate(row.weekEnding))}: ${formatMoney(row[item.key] || 0)}</title>
+    const points = rows
+      .map((row, index) => ({ row, index, value: row[item.key] }))
+      .filter((point) => point.value !== null && point.value !== undefined && point.value !== "");
+    if (!points.length) return "";
+    const path = points.map((point, index) => `${index === 0 ? "M" : "L"} ${x(point.index)},${y(numericValue(point.value))}`).join(" ");
+    const dots = points.map(({ row, index, value }) => `
+      <circle class="trend-dot" cx="${x(index)}" cy="${y(numericValue(value))}" r="3.5" fill="${item.color}">
+        <title>${escapeHtml(item.label)} ${dateFormat.format(parseDate(item.key.startsWith("prior") ? row.priorWeek : row.weekEnding))}: ${formatMoney(value)}</title>
       </circle>
     `).join("");
-    return `<path class="trend-line" d="${path}" stroke="${item.color}"></path>${dots}`;
+    const dash = item.dash ? ` stroke-dasharray="${item.dash}"` : "";
+    return `<path class="trend-line" d="${path}" stroke="${item.color}"${dash}></path>${dots}`;
   }).join("");
 
-  const legend = series.map((item) =>
-    `<span><i class="trend-swatch" style="background:${item.color}"></i>${escapeHtml(item.label)}</span>`
-  ).join("");
+  const legend = series.map((item) => {
+    const swatch = item.dash
+      ? `repeating-linear-gradient(90deg, ${item.color} 0 6px, transparent 6px 10px)`
+      : item.color;
+    return `<span><i class="trend-swatch" style="background:${swatch}"></i>${escapeHtml(item.label)}</span>`;
+  }).join("");
 
   return `
     <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(title)}">
@@ -293,6 +365,22 @@ function hasRevenue(row) {
 
 function hasValue(value) {
   return value !== null && value !== undefined && value !== "";
+}
+
+function numericValue(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function shiftIsoDate(value, days) {
+  const date = parseDate(value);
+  if (!date) return "";
+  date.setDate(date.getDate() + days);
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0")
+  ].join("-");
 }
 
 function parseDate(value) {

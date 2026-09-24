@@ -889,8 +889,8 @@ input[type="password"] {
 }
 
 .trend-swatch {
-  width: 12px;
-  height: 12px;
+  width: 20px;
+  height: 4px;
   border-radius: 999px;
 }
 
@@ -908,6 +908,15 @@ input[type="password"] {
   height: 100%;
   border-radius: inherit;
   background: var(--accent);
+}
+
+.trend-notice {
+  margin: 10px 0 0;
+  padding: 9px 11px;
+  border-left: 3px solid #d99a24;
+  background: #fff8e8;
+  color: #705414;
+  font-size: 0.82rem;
 }
 
 .progress span.green {
