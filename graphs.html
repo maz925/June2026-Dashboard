@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>UFC GYM Revenue Graphs</title>
+  <link rel="stylesheet" href="styles.css?v=2026-09-24-graphs">
+</head>
+<body class="graphs-theme">
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">UFC GYM Team Dashboard</p>
+      <h1>Revenue Graphs</h1>
+    </div>
+    <div class="source">
+      <nav class="top-links" aria-label="Dashboard links">
+        <a href="/">DD / POS</a>
+        <a href="/members.html">Members</a>
+        <a href="/pos.html">POS</a>
+        <a href="/fitness.html">Fitness</a>
+        <a aria-current="page" href="/graphs.html">Graphs</a>
+      </nav>
+      <span id="connectionStatus"></span>
+      <span id="sourceName"></span>
+      <span id="updatedAt"></span>
+    </div>
+  </header>
+
+  <main>
+    <section class="toolbar" aria-label="Graph filters">
+      <label class="filter">
+        <span>Clubs</span>
+        <select id="clubFilter"></select>
+      </label>
+      <label class="filter">
+        <span>Display</span>
+        <select id="displayMode">
+          <option value="weekly">Weekly actuals</option>
+          <option value="cumulative">Cumulative YTD</option>
+        </select>
+      </label>
+    </section>
+
+    <section class="metrics" aria-label="YTD totals">
+      <article>
+        <span>YTD DD</span>
+        <strong id="ytdDD"></strong>
+      </article>
+      <article>
+        <span>YTD POS</span>
+        <strong id="ytdPOS"></strong>
+      </article>
+      <article>
+        <span>YTD Revenue</span>
+        <strong id="ytdRevenue"></strong>
+      </article>
+      <article>
+        <span>YTD POS %</span>
+        <strong id="ytdPOSPercent"></strong>
+      </article>
+    </section>
+
+    <section class="cycle-panel" aria-label="Graph reporting period">
+      <div>
+        <span class="mini-label">YTD period</span>
+        <strong id="ytdPeriod"></strong>
+      </div>
+      <div>
+        <span class="mini-label">Latest week</span>
+        <strong id="latestWeek"></strong>
+      </div>
+    </section>
+
+    <section class="view active">
+      <div class="section-heading">
+        <h2>YTD DD and POS by Club</h2>
+        <p>Weekly Hapana revenue rows from the start of the calendar year to the latest stored week.</p>
+      </div>
+      <div class="graph-grid" id="graphGrid"></div>
+    </section>
+  </main>
+
+  <script src="tracker-data.js?v=2026-08-18-reporting-cycle"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="auth.js"></script>
+  <script src="graphs.js?v=2026-09-24-graphs"></script>
+</body>
+</html>

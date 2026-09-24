@@ -86,6 +86,26 @@ body.members-theme .topbar {
   background: linear-gradient(90deg, #211812 0%, #794018 58%, #e16a1a 100%);
 }
 
+body.graphs-theme {
+  --ink: #13202e;
+  --muted: #647284;
+  --line: #ced8e5;
+  --page: #f4f7fb;
+  --panel: #ffffff;
+  --red: #c83d33;
+  --red-bg: #fff0ef;
+  --green: #17834f;
+  --green-bg: #e8f7ef;
+  --amber: #a15c00;
+  --amber-bg: #fff5df;
+  --accent: #285ea8;
+  --charcoal: #18304f;
+}
+
+body.graphs-theme .topbar {
+  background: linear-gradient(90deg, #141a22 0%, #18304f 58%, #285ea8 100%);
+}
+
 .topbar {
   display: flex;
   align-items: center;
@@ -784,6 +804,20 @@ input[type="password"] {
   padding: 16px;
 }
 
+.graph-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.graph-card {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 10px 24px rgba(31, 38, 46, 0.06);
+}
+
 .trend-head {
   display: flex;
   align-items: end;
@@ -1115,6 +1149,7 @@ tr:last-child td {
   .fitness-kpi-grid,
   .target-input-grid,
   .sla-item-grid,
+  .graph-grid,
   .summary-grid,
   .latest-grid,
   .target-grid {
@@ -1139,6 +1174,7 @@ tr:last-child td {
   .fitness-kpi-grid,
   .target-input-grid,
   .sla-item-grid,
+  .graph-grid,
   .summary-grid,
   .latest-grid,
   .target-grid {
