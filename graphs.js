@@ -1,5 +1,6 @@
-const GRAPHS_APP_VERSION = "revenue-graphs-separated-v3-2026-09-24";
+const GRAPHS_APP_VERSION = "revenue-graphs-full-ytd-v4-2026-09-24";
 const CLUB_ORDER = ["Bankstown", "Wetherill Park", "580G", "Woolooware"];
+const PRODUCTION_REVENUE_ENDPOINT = "https://ufcgym-dashboard-june2026.vercel.app/api/hapana";
 
 let data = window.TRACKER_DATA || { rolling: [], source: "Workbook data", updated: null };
 
@@ -31,13 +32,12 @@ async function init() {
 }
 
 async function loadLiveData() {
-  if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" || window.location.protocol === "file:") {
-    state.connection = "workbook";
-    return;
-  }
-
   try {
-    const response = await fetch("/api/hapana", { headers: { "Accept": "application/json" } });
+    const localPreview = window.location.hostname === "localhost" ||
+      window.location.hostname === "127.0.0.1" ||
+      window.location.protocol === "file:";
+    const endpoint = localPreview ? PRODUCTION_REVENUE_ENDPOINT : "/api/hapana";
+    const response = await fetch(endpoint, { headers: { "Accept": "application/json" } });
     if (!response.ok) throw new Error(`Revenue API returned ${response.status}`);
     const payload = await response.json();
     if (!Array.isArray(payload.rolling)) throw new Error("Revenue API returned invalid rolling rows");
@@ -145,13 +145,18 @@ function renderMetrics() {
 
 function renderPeriod() {
   const latest = latestWeekDate();
+  const earliest = ytdRows()
+    .map(rowStartDate)
+    .filter(Boolean)
+    .sort((a, b) => a - b)[0];
   if (!latest) {
     setText("#ytdPeriod", "No revenue data available");
     setText("#latestWeek", "No stored week");
     return;
   }
-  setText("#ytdPeriod", `1 Jan to ${dateFormat.format(latest)} ${latest.getFullYear()}`);
-  setText("#latestWeek", dateFormat.format(latest));
+  const startLabel = earliest ? dateFormat.format(earliest) : "1 Jan";
+  setText("#ytdPeriod", `${startLabel} to ${dateFormat.format(latest)} ${latest.getFullYear()}`);
+  setText("#latestWeek", `${dateFormat.format(latest)} ${latest.getFullYear()}`);
 }
 
 function renderGraphs() {
@@ -380,6 +385,14 @@ function shiftIsoDate(value, days) {
     String(date.getMonth() + 1).padStart(2, "0"),
     String(date.getDate()).padStart(2, "0")
   ].join("-");
+}
+
+function rowStartDate(row) {
+  const parts = String(row?.dateFrom || "").split("/").map(Number);
+  if (parts.length === 3 && parts.every(Number.isFinite)) {
+    return new Date(parts[2], parts[1] - 1, parts[0]);
+  }
+  return parseDate(row?.weekEnding);
 }
 
 function parseDate(value) {
