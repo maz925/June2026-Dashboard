@@ -525,6 +525,28 @@ input[type="password"] {
   font-size: 0.88rem;
 }
 
+.new-member-panel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.new-member-panel article {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-left: 5px solid var(--accent);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 10px 24px rgba(31, 38, 46, 0.06);
+}
+
+.new-member-panel strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 1.8rem;
+}
+
 .target-editor {
   display: grid;
   gap: 16px;
@@ -1184,6 +1206,7 @@ tr:last-child td {
   .metrics,
   .cycle-panel,
   .movement-panel,
+  .new-member-panel,
   .cancellation-panel,
   .fitness-kpi-grid,
   .target-input-grid,
@@ -1209,6 +1232,7 @@ tr:last-child td {
   .metrics,
   .cycle-panel,
   .movement-panel,
+  .new-member-panel,
   .cancellation-panel,
   .fitness-kpi-grid,
   .target-input-grid,

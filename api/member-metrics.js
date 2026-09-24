@@ -7,8 +7,9 @@ const {
 } = require("./core-report.js");
 
 const DEFAULT_HAPANA_BASE_URL = "https://api.hapana.com/v2";
-const MEMBER_METRICS_VERSION = "member-metrics-suspended-status-pkg-v22-2026-06-09";
+const MEMBER_METRICS_VERSION = "member-metrics-unique-joins-v24-2026-09-25";
 const STORAGE_PATH = "member-metrics.json";
+const REVENUE_STORAGE_PATH = "weekly-revenue.json";
 const TIME_ZONE = "Australia/Sydney";
 
 const LOCATIONS = [
@@ -47,6 +48,7 @@ module.exports = async function handler(request, response) {
     const debug = url.searchParams.get("debug");
     const source = url.searchParams.get("source") || "core";
     const targetLocations = locationsForRequest(url.searchParams);
+    const reportingWeek = await loadReportingWeek(window.dateTo);
 
     if (!targetLocations.length) {
       const stored = await loadExistingMemberMetrics();
@@ -90,7 +92,12 @@ module.exports = async function handler(request, response) {
         const suspended = await suspendedMembershipRecords({ location, window, jar });
         const suspendedRecords = suspended.records;
         const combinedRecords = records.concat(suspendedRecords);
-        const row = summariseRecords(combinedRecords, { club, dateFrom: window.dateFrom, dateTo: window.dateTo });
+        const row = summariseRecords(combinedRecords, {
+          club,
+          dateFrom: window.dateFrom,
+          dateTo: window.dateTo,
+          reportingWeek
+        });
         if (suspended.warning) row.warning = suspended.warning;
         rows.push(row);
 
@@ -133,6 +140,7 @@ module.exports = async function handler(request, response) {
       dateFrom: window.dateFrom,
       dateTo: window.dateTo,
       monthKey: window.monthKey,
+      reportingWeek,
       clubs,
       totals: totalRows(clubs),
       failures
@@ -170,6 +178,35 @@ async function loadExistingMemberMetrics() {
   const result = await get(STORAGE_PATH, { access: "private" }).catch(() => null);
   if (!result || result.statusCode !== 200 || !result.stream) return null;
   return new Response(result.stream).json();
+}
+
+async function loadReportingWeek(dateTo) {
+  const cutoff = parseHapanaDate(dateTo);
+  const fallback = completedWeekWindow(cutoff);
+  const result = await get(REVENUE_STORAGE_PATH, { access: "private" }).catch(() => null);
+  if (!result || result.statusCode !== 200 || !result.stream) return fallback;
+
+  const payload = await new Response(result.stream).json().catch(() => null);
+  const candidates = (payload?.rolling || [])
+    .filter((row) => row?.dateFrom && row?.dateTo)
+    .map((row) => ({
+      dateFrom: row.dateFrom,
+      dateTo: row.dateTo,
+      end: parseHapanaDate(row.dateTo)
+    }))
+    .filter((row) => row.end <= cutoff)
+    .sort((a, b) => b.end - a.end);
+
+  if (!candidates.length) return fallback;
+  return { dateFrom: candidates[0].dateFrom, dateTo: candidates[0].dateTo };
+}
+
+function completedWeekWindow(end) {
+  const weekEnd = addDays(end, -end.getUTCDay());
+  return {
+    dateFrom: hapanaDate(addDays(weekEnd, -6)),
+    dateTo: hapanaDate(weekEnd)
+  };
 }
 
 function emptyPayload() {
@@ -500,9 +537,12 @@ function monthWindow(params) {
   };
 }
 
-function summariseRecords(records, { club, dateFrom, dateTo }) {
+function summariseRecords(records, { club, dateFrom, dateTo, reportingWeek }) {
   const start = parseHapanaDate(dateFrom);
   const end = parseHapanaDate(dateTo);
+  const monthStart = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), 1));
+  const weekStart = parseHapanaDate(reportingWeek.dateFrom);
+  const weekEnd = parseHapanaDate(reportingWeek.dateTo);
   const windows = movementWindows(end);
   const cancellationWindows = cancellationForecastWindows(end);
   const days = dateRange(start, end);
@@ -510,7 +550,8 @@ function summariseRecords(records, { club, dateFrom, dateTo }) {
   let fitnessPassport = 0;
   let cancellations = 0;
   let suspensions = 0;
-  let newMemberships = 0;
+  const joinedMTD = new Set();
+  const joinedWeek = new Set();
   const movement = emptyMovement(windows);
   const cancellationForecast = emptyCancellationForecast(cancellationWindows);
 
@@ -523,6 +564,7 @@ function summariseRecords(records, { club, dateFrom, dateTo }) {
     const status = field(record, ["Package Status", "Membership Status", "Status", "Client Status", "Member Status"]);
     const packageName = field(record, ["Package Name", "Membership Name", "Product Name"]);
     const packageCategory = field(record, ["Package Category", "Membership Category", "Product Category"]);
+    const memberCreatedDate = bestDate(record, ["Member Created Date", "Join Date", "Client Created Date"]);
     const startDate = bestDate(record, ["Start Date", "Membership Start Date", "Contract Start Date", "Sale Date", "Sold Date", "Purchase Date", "Created Date", "Join Date", "Date Sold", "Member Created Date"]);
     const soldDate = bestDate(record, ["Date Sold", "Sale Date", "Sold Date", "Purchase Date", "Created Date", "Member Created Date", "Join Date"]);
     const cancelDate = bestDate(record, ["Cancel Date", "Cancelled Date", "Cancellation Date", "Terminated Date", "End Date"]);
@@ -535,7 +577,11 @@ function summariseRecords(records, { club, dateFrom, dateTo }) {
     }
     if (inRange(cancelDate, start, end) || /cancel|terminat/i.test(status)) cancellations += 1;
     if (inRange(suspendDate, start, end) || /suspend|freeze|frozen|hold/i.test(status)) suspensions += 1;
-    if (isNewSale({ status, packageName, packageCategory, soldDate, startDate, cancelDate, windowStart: start, windowEnd: end })) newMemberships += 1;
+    if (isNewMemberRecord({ packageName, packageCategory, memberCreatedDate })) {
+      const identity = memberIdentity(record);
+      if (inRange(memberCreatedDate, monthStart, end)) joinedMTD.add(identity);
+      if (inRange(memberCreatedDate, weekStart, weekEnd)) joinedWeek.add(identity);
+    }
     addCancellationForecast(cancellationForecast, cancellationWindows, cancelDate);
     addMovement(movement, windows, {
       status,
@@ -560,7 +606,19 @@ function summariseRecords(records, { club, dateFrom, dateTo }) {
     fitnessPassportMembers: fitnessPassport,
     cancellations,
     suspensions,
-    newMemberships,
+    newMemberships: joinedMTD.size,
+    newMembers: {
+      currentWeek: {
+        dateFrom: reportingWeek.dateFrom,
+        dateTo: reportingWeek.dateTo,
+        total: joinedWeek.size
+      },
+      currentMonthToDate: {
+        dateFrom: hapanaDate(monthStart),
+        dateTo,
+        total: joinedMTD.size
+      }
+    },
     movement,
     cancellationForecast,
     dailyActive,
@@ -583,9 +641,26 @@ function totalRows(rows) {
     cancellations: rows.reduce((sum, row) => sum + (row.cancellations || 0), 0),
     suspensions: rows.reduce((sum, row) => sum + (row.suspensions || 0), 0),
     newMemberships: rows.reduce((sum, row) => sum + (row.newMemberships || 0), 0),
+    newMembers: totalNewMembers(rows),
     movement: totalMovement(rows),
     cancellationForecast: totalCancellationForecast(rows),
     dailyActive: [...byDate.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, active]) => ({ date, active }))
+  };
+}
+
+function totalNewMembers(rows) {
+  const totalWindow = (key) => {
+    const first = rows.find((row) => row.newMembers?.[key])?.newMembers[key] || {};
+    return {
+      dateFrom: first.dateFrom || "",
+      dateTo: first.dateTo || "",
+      total: rows.reduce((sum, row) => sum + (row.newMembers?.[key]?.total || 0), 0)
+    };
+  };
+
+  return {
+    currentWeek: totalWindow("currentWeek"),
+    currentMonthToDate: totalWindow("currentMonthToDate")
   };
 }
 
@@ -739,6 +814,19 @@ function isNewSale({ status, packageName, packageCategory, soldDate, startDate, 
     && isOperatingClubMembership(packageCategory)
     && !isExcludedNewSalePackage(packageName)
     && inRange(saleDate, windowStart, windowEnd);
+}
+
+function isNewMemberRecord({ packageName, packageCategory, memberCreatedDate }) {
+  return Boolean(memberCreatedDate)
+    && isOperatingClubMembership(packageCategory)
+    && !isExcludedNewSalePackage(packageName);
+}
+
+function memberIdentity(record) {
+  const email = field(record, ["Email", "Email Address"]);
+  const phone = field(record, ["Phone", "Mobile", "Mobile Number"]);
+  const name = field(record, ["Full Name", "Member Name", "Client Name"]);
+  return normaliseHeader(email) || normaliseHeader(phone) || normaliseHeader(name);
 }
 
 function isOperatingClubMembership(packageCategory) {

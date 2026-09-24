@@ -1,4 +1,4 @@
-const MEMBER_APP_VERSION = "member-dashboard-nmm-v23-2026-06-10";
+const MEMBER_APP_VERSION = "member-dashboard-unique-joins-v24-2026-09-25";
 const REFRESH_CLUBS = ["Bankstown", "Wetherill Park", "580G", "Woolooware"];
 
 const number = new Intl.NumberFormat("en-AU", { maximumFractionDigits: 0 });
@@ -15,7 +15,7 @@ const state = {
     source: "Hapana Core Membership Detail",
     updated: null,
     clubs: [],
-    totals: { activeMembers: 0, standardActiveMembers: 0, fitnessPassportMembers: 0, cancellations: 0, suspensions: 0, newMemberships: 0, movement: {}, cancellationForecast: {}, dailyActive: [] },
+    totals: { activeMembers: 0, standardActiveMembers: 0, fitnessPassportMembers: 0, cancellations: 0, suspensions: 0, newMemberships: 0, newMembers: {}, movement: {}, cancellationForecast: {}, dailyActive: [] },
     failures: []
   },
   connection: "loading"
@@ -112,6 +112,7 @@ function aggregateClubTotals(clubs) {
     cancellations: sum.cancellations + (row.cancellations || 0),
     suspensions: sum.suspensions + (row.suspensions || 0),
     newMemberships: sum.newMemberships + (row.newMemberships || 0),
+    newMembers: aggregateNewMembers(sum.newMembers, row.newMembers || {}),
     movement: aggregateMovement(sum.movement, row.movement || {}),
     cancellationForecast: aggregateCancellationForecast(sum.cancellationForecast, row.cancellationForecast || {}),
     dailyActive: sumDailyActive(sum.dailyActive, row.dailyActive || [])
@@ -122,6 +123,7 @@ function aggregateClubTotals(clubs) {
     cancellations: 0,
     suspensions: 0,
     newMemberships: 0,
+    newMembers: {},
     movement: {},
     cancellationForecast: {},
     dailyActive: []
@@ -241,13 +243,43 @@ function renderMetrics() {
   setText("#suspensions", number.format(totals.suspensions || 0));
 }
 
+function aggregateNewMembers(current, next) {
+  return {
+    currentWeek: addNewMemberWindow(current.currentWeek, next.currentWeek),
+    currentMonthToDate: addNewMemberWindow(current.currentMonthToDate, next.currentMonthToDate)
+  };
+}
+
+function addNewMemberWindow(current = {}, next = {}) {
+  return {
+    dateFrom: current.dateFrom || next.dateFrom || "",
+    dateTo: current.dateTo || next.dateTo || "",
+    total: (current.total || 0) + (next.total || 0)
+  };
+}
+
+function renderNewMembers() {
+  const newMembers = visibleTotals().newMembers || {};
+  const week = newMembers.currentWeek || {};
+  const mtd = newMembers.currentMonthToDate || {};
+  setText("#weekNewMembers", number.format(week.total || 0));
+  setText("#mtdNewMembers", number.format(mtd.total || 0));
+  setText("#weekNewMembersLabel", periodLabel("New Members - Current Week", week));
+  setText("#mtdNewMembersLabel", periodLabel("New Members - MTD", mtd));
+}
+
+function periodLabel(label, window) {
+  if (!window.dateFrom || !window.dateTo) return label;
+  return `${label} (${formatDate(parseHapanaDate(window.dateFrom))} to ${formatDate(parseHapanaDate(window.dateTo))})`;
+}
+
 function renderMovement() {
   const movement = visibleTotals().movement || {};
   const previous = movement.previousMonth || {};
   const current = movement.currentMonthToDate || {};
 
-  setText("#previousMovementLabel", previous.label ? `Previous Month (${previous.label})` : "Previous Month");
-  setText("#currentMovementLabel", current.label ? `Current MTD (${current.label})` : "Current MTD");
+  setText("#previousMovementLabel", previous.label ? `Previous Month Membership Sales (${previous.label})` : "Previous Month Membership Sales");
+  setText("#currentMovementLabel", current.label ? `Current MTD Membership Sales (${current.label})` : "Current MTD Membership Sales");
   setText("#previousNewSales", number.format(previous.newSales || 0));
   setText("#previousStandardNewSales", number.format(standardNewSales(previous)));
   setText("#previousFitnessPassportNewSales", number.format(previous.fitnessPassportNewSales || 0));
@@ -304,7 +336,7 @@ function renderSummary() {
         <span><span class="mini-label">Total Active</span><strong class="mini-value">${number.format(row.activeMembers || 0)}</strong></span>
         <span><span class="mini-label">Standard</span><strong class="mini-value">${number.format(standardActive(row))}</strong></span>
         <span><span class="mini-label">Fitness Passport</span><strong class="mini-value">${number.format(row.fitnessPassportMembers || 0)}</strong></span>
-        <span><span class="mini-label">New</span><strong class="mini-value">${number.format(row.newMemberships || 0)}</strong></span>
+        <span><span class="mini-label">New MTD</span><strong class="mini-value">${number.format(row.newMembers?.currentMonthToDate?.total ?? row.newMemberships ?? 0)}</strong></span>
         <span><span class="mini-label">Current Cancelled</span><strong class="mini-value negative">${number.format(currentMonthCancellations(row))}</strong></span>
         <span><span class="mini-label">Current Suspended</span><strong class="mini-value">${number.format(row.suspensions || 0)}</strong></span>
         <span><span class="mini-label">NMM</span><strong class="mini-value ${movementClass(netMemberMovement(row))}">${formatSigned(netMemberMovement(row))}</strong></span>
@@ -386,6 +418,7 @@ function renderDetail() {
 function render() {
   renderSource();
   renderMetrics();
+  renderNewMembers();
   renderMovement();
   renderCancellationForecast();
   renderPeriod();
