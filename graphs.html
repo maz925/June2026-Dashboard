@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>UFC GYM Revenue Graphs</title>
-  <link rel="stylesheet" href="styles.css?v=2026-09-24-graphs-year-colors">
+  <link rel="stylesheet" href="styles.css?v=2026-09-25-graphs-comparison-table">
 </head>
 <body class="graphs-theme">
   <header class="topbar">
@@ -86,11 +86,24 @@
       </div>
       <div class="graph-grid" id="yoyGraphGrid"></div>
     </section>
+
+    <section class="view active graph-section">
+      <div class="section-heading">
+        <h2>YTD Year-on-Year Difference</h2>
+        <p id="comparisonPeriod">Current YTD compared with the matched prior-year reporting period.</p>
+      </div>
+      <div class="table-wrap comparison-table-wrap">
+        <table class="comparison-table">
+          <thead id="comparisonHead"></thead>
+          <tbody id="comparisonBody"></tbody>
+        </table>
+      </div>
+    </section>
   </main>
 
   <script src="tracker-data.js?v=2026-08-18-reporting-cycle"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="auth.js"></script>
-  <script src="graphs.js?v=2026-09-24-graphs-year-colors"></script>
+  <script src="graphs.js?v=2026-09-25-graphs-comparison-table"></script>
 </body>
 </html>

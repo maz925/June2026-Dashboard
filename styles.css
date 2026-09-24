@@ -814,6 +814,25 @@ input[type="password"] {
   margin-top: 24px;
 }
 
+.comparison-table-wrap {
+  box-shadow: 0 10px 24px rgba(31, 38, 46, 0.06);
+}
+
+.comparison-table {
+  min-width: 1260px;
+}
+
+.comparison-table th:not(:first-child),
+.comparison-table td:not(:first-child) {
+  text-align: right;
+}
+
+.comparison-total td {
+  border-top: 2px solid var(--accent);
+  background: #f3f7fc;
+  font-weight: 800;
+}
+
 .graph-card {
   padding: 16px;
   border: 1px solid var(--line);

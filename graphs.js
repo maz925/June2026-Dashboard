@@ -1,4 +1,4 @@
-const GRAPHS_APP_VERSION = "revenue-graphs-year-colors-v5-2026-09-24";
+const GRAPHS_APP_VERSION = "revenue-graphs-comparison-table-v6-2026-09-25";
 const CLUB_ORDER = ["Bankstown", "Wetherill Park", "580G", "Woolooware"];
 const PRODUCTION_REVENUE_ENDPOINT = "https://ufcgym-dashboard-june2026.vercel.app/api/hapana";
 
@@ -119,6 +119,7 @@ function render() {
   renderMetrics();
   renderPeriod();
   renderGraphs();
+  renderComparisonTable();
 }
 
 function renderSource() {
@@ -232,6 +233,114 @@ function renderClubGraph(club, rows, graphType) {
       ` : ""}
     </article>
   `;
+}
+
+function renderComparisonTable() {
+  const currentRows = ytdRows();
+  const latest = latestWeekDate();
+  const currentYear = latest?.getFullYear();
+  const priorYear = currentYear ? currentYear - 1 : null;
+  const head = document.querySelector("#comparisonHead");
+  const body = document.querySelector("#comparisonBody");
+
+  head.innerHTML = `
+    <tr>
+      <th>Club</th>
+      <th>${currentYear || "Current"} DD</th>
+      <th>${priorYear || "Prior"} DD</th>
+      <th>DD change</th>
+      <th>${currentYear || "Current"} POS</th>
+      <th>${priorYear || "Prior"} POS</th>
+      <th>POS change</th>
+      <th>${currentYear || "Current"} total</th>
+      <th>${priorYear || "Prior"} total</th>
+      <th>Total change</th>
+    </tr>
+  `;
+
+  if (!currentRows.length) {
+    body.innerHTML = `<tr><td colspan="10" class="muted-value">No revenue data is available for comparison.</td></tr>`;
+    return;
+  }
+
+  const comparisons = selectedClubNames().map((club) => comparisonForClub(club, currentRows));
+  const rows = comparisons.map((comparison) => comparisonRowHtml(comparison));
+  if (comparisons.length > 1) {
+    rows.push(comparisonRowHtml(sumComparisons(
+      comparisons,
+      isAllClubsSelected() ? "All Clubs" : "Selected Clubs"
+    ), true));
+  }
+  body.innerHTML = rows.join("");
+  setText(
+    "#comparisonPeriod",
+    `${currentYear} YTD is compared with the matched ${priorYear} reporting weeks for the selected clubs.`
+  );
+}
+
+function comparisonForClub(club, allCurrentRows) {
+  const currentRows = fillMissingWeeks(allCurrentRows.filter((row) => row.club === club));
+  const matchedRows = yoyRows(club, currentRows).rows;
+  return matchedRows.reduce((totals, row) => ({
+    ...totals,
+    currentDD: totals.currentDD + numericValue(row.ddActual),
+    priorDD: totals.priorDD + numericValue(row.priorDD),
+    currentPOS: totals.currentPOS + numericValue(row.posActual),
+    priorPOS: totals.priorPOS + numericValue(row.priorPOS),
+    hasPrior: totals.hasPrior || row.priorDD !== null || row.priorPOS !== null
+  }), {
+    club,
+    currentDD: 0,
+    priorDD: 0,
+    currentPOS: 0,
+    priorPOS: 0,
+    hasPrior: false
+  });
+}
+
+function sumComparisons(comparisons, club) {
+  return comparisons.reduce((totals, row) => ({
+    ...totals,
+    currentDD: totals.currentDD + row.currentDD,
+    priorDD: totals.priorDD + row.priorDD,
+    currentPOS: totals.currentPOS + row.currentPOS,
+    priorPOS: totals.priorPOS + row.priorPOS,
+    hasPrior: totals.hasPrior || row.hasPrior
+  }), {
+    club,
+    currentDD: 0,
+    priorDD: 0,
+    currentPOS: 0,
+    priorPOS: 0,
+    hasPrior: false
+  });
+}
+
+function comparisonRowHtml(row, total = false) {
+  const currentTotal = row.currentDD + row.currentPOS;
+  const priorTotal = row.priorDD + row.priorPOS;
+  return `
+    <tr${total ? ' class="comparison-total"' : ""}>
+      <td><strong>${escapeHtml(row.club)}</strong></td>
+      <td>${formatMoney(row.currentDD)}</td>
+      <td>${row.hasPrior ? formatMoney(row.priorDD) : "-"}</td>
+      ${changeCell(row.currentDD, row.priorDD, row.hasPrior)}
+      <td>${formatMoney(row.currentPOS)}</td>
+      <td>${row.hasPrior ? formatMoney(row.priorPOS) : "-"}</td>
+      ${changeCell(row.currentPOS, row.priorPOS, row.hasPrior)}
+      <td>${formatMoney(currentTotal)}</td>
+      <td>${row.hasPrior ? formatMoney(priorTotal) : "-"}</td>
+      ${changeCell(currentTotal, priorTotal, row.hasPrior)}
+    </tr>
+  `;
+}
+
+function changeCell(current, prior, hasPrior) {
+  if (!hasPrior || !prior) return `<td class="muted-value">-</td>`;
+  const change = ((current - prior) / Math.abs(prior)) * 100;
+  const className = change > 0 ? "positive" : change < 0 ? "negative" : "muted-value";
+  const sign = change > 0 ? "+" : "";
+  return `<td class="${className}">${sign}${number.format(change)}%</td>`;
 }
 
 function fillMissingWeeks(rows) {
