@@ -1,4 +1,4 @@
-const GRAPHS_APP_VERSION = "revenue-graphs-full-ytd-v4-2026-09-24";
+const GRAPHS_APP_VERSION = "revenue-graphs-year-colors-v5-2026-09-24";
 const CLUB_ORDER = ["Bankstown", "Wetherill Park", "580G", "Woolooware"];
 const PRODUCTION_REVENUE_ENDPOINT = "https://ufcgym-dashboard-june2026.vercel.app/api/hapana";
 
@@ -205,10 +205,10 @@ function renderClubGraph(club, rows, graphType) {
   const currentYear = parseDate(rows[rows.length - 1].weekEnding).getFullYear();
   const series = isYoy
     ? [
-        { key: "ddActual", label: `${currentYear} DD`, color: "#17202a" },
-        { key: "priorDD", label: `${currentYear - 1} DD`, color: "#6b7280", dash: "10 7" },
-        { key: "posActual", label: `${currentYear} POS`, color: "#17834f" },
-        { key: "priorPOS", label: `${currentYear - 1} POS`, color: "#73b892", dash: "10 7" }
+        { key: "ddActual", label: `${currentYear} DD`, color: "#0b3a75" },
+        { key: "posActual", label: `${currentYear} POS`, color: "#168aad" },
+        { key: "priorDD", label: `${currentYear - 1} DD`, color: "#c2410c", dash: "10 7" },
+        { key: "priorPOS", label: `${currentYear - 1} POS`, color: "#d97706", dash: "10 7" }
       ]
     : [
         { key: "ddActual", label: "DD", color: "#17202a" },
