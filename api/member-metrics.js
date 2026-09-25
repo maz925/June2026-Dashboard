@@ -7,7 +7,7 @@ const {
 } = require("./core-report.js");
 
 const DEFAULT_HAPANA_BASE_URL = "https://api.hapana.com/v2";
-const MEMBER_METRICS_VERSION = "member-metrics-revenue-nmm-v31-2026-09-25";
+const MEMBER_METRICS_VERSION = "member-metrics-revenue-nmm-v32-2026-09-25";
 const STORAGE_PATH = "member-metrics.json";
 const REVENUE_STORAGE_PATH = "weekly-revenue.json";
 const TIME_ZONE = "Australia/Sydney";
@@ -89,17 +89,15 @@ module.exports = async function handler(request, response) {
         }
 
         const jar = await createCoreSession();
-        const [csv, suspended, cancelled] = await Promise.all([
-          downloadCoreReportCsv({
-            locationName: location,
-            dateFrom: window.dateFrom,
-            dateTo: window.dateTo,
-            reportKey: "membershipDetail",
-            jar
-          }),
-          suspendedMembershipRecords({ location, window, jar }),
-          cancelledMembershipRecords({ location, window, jar })
-        ]);
+        const csv = await downloadCoreReportCsv({
+          locationName: location,
+          dateFrom: window.dateFrom,
+          dateTo: window.dateTo,
+          reportKey: "membershipDetail",
+          jar
+        });
+        const suspended = await suspendedMembershipRecords({ location, window, jar });
+        const cancelled = await cancelledMembershipRecords({ location, window, jar });
         const records = parseDelimited(csv);
         const suspendedRecords = suspended.records;
         const combinedRecords = records.concat(suspendedRecords);
