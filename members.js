@@ -1,5 +1,12 @@
-const MEMBER_APP_VERSION = "member-dashboard-paid-cancellations-v25-2026-09-25";
+const MEMBER_APP_VERSION = "member-dashboard-local-api-fallback-v26-2026-09-25";
 const REFRESH_CLUBS = ["Bankstown", "Wetherill Park", "580G", "Woolooware"];
+const MEMBER_API_ORIGIN = ["localhost", "127.0.0.1"].includes(window.location.hostname)
+  ? "https://ufcgym-dashboard-june2026.vercel.app"
+  : "";
+
+function memberApiUrl(query) {
+  return `${MEMBER_API_ORIGIN}/api/member-metrics?${query}`;
+}
 
 const number = new Intl.NumberFormat("en-AU", { maximumFractionDigits: 0 });
 const dateFormat = new Intl.DateTimeFormat("en-AU", {
@@ -194,7 +201,7 @@ function sumDailyActive(current, next) {
 
 async function loadMemberData() {
   try {
-    const response = await fetch("/api/member-metrics?stored=1", { headers: { "Accept": "application/json" } });
+    const response = await fetch(memberApiUrl(`stored=1&_=${Date.now()}`), { headers: { "Accept": "application/json" } });
     if (!response.ok) throw new Error(`Member metrics returned ${response.status}`);
     const payload = await response.json();
     if (!Array.isArray(payload.clubs)) throw new Error("Member metrics returned invalid club rows");
@@ -475,7 +482,7 @@ async function refreshMemberMetrics() {
       date_to: toHapanaDate(memberDateTo.value),
       source: "core"
     });
-    const response = await fetch(`/api/member-metrics?${params.toString()}`, {
+    const response = await fetch(memberApiUrl(params.toString()), {
       headers: { "Accept": "application/json" }
     });
     const body = await response.json().catch(() => ({}));
