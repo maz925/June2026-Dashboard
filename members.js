@@ -1,4 +1,4 @@
-const MEMBER_APP_VERSION = "member-dashboard-aligned-movement-v28-2026-09-25";
+const MEMBER_APP_VERSION = "member-dashboard-revenue-nmm-v29-2026-09-25";
 const REFRESH_CLUBS = ["Bankstown", "Wetherill Park", "580G", "Woolooware"];
 const MEMBER_API_ORIGIN = ["localhost", "127.0.0.1"].includes(window.location.hostname)
   ? "https://ufcgym-dashboard-june2026.vercel.app"
@@ -22,7 +22,7 @@ const state = {
     source: "Hapana Core Membership Detail",
     updated: null,
     clubs: [],
-    totals: { activeMembers: 0, standardActiveMembers: 0, fitnessPassportMembers: 0, cancellations: 0, revenueCancellations: {}, suspensions: 0, newMemberships: 0, newMembers: {}, movement: {}, cancellationForecast: {}, dailyActive: [] },
+    totals: { activeMembers: 0, standardActiveMembers: 0, fitnessPassportMembers: 0, cancellations: 0, revenueCancellations: {}, revenueNewSales: {}, suspensions: 0, newMemberships: 0, newMembers: {}, movement: {}, cancellationForecast: {}, dailyActive: [] },
     failures: []
   },
   connection: "loading"
@@ -118,6 +118,7 @@ function aggregateClubTotals(clubs) {
     fitnessPassportMembers: sum.fitnessPassportMembers + (row.fitnessPassportMembers || 0),
     cancellations: sum.cancellations + (row.cancellations || 0),
     revenueCancellations: aggregateNewMembers(sum.revenueCancellations, row.revenueCancellations || {}),
+    revenueNewSales: aggregateNewMembers(sum.revenueNewSales, row.revenueNewSales || {}),
     suspensions: sum.suspensions + (row.suspensions || 0),
     newMemberships: sum.newMemberships + (row.newMemberships || 0),
     newMembers: aggregateNewMembers(sum.newMembers, row.newMembers || {}),
@@ -130,6 +131,7 @@ function aggregateClubTotals(clubs) {
     fitnessPassportMembers: 0,
     cancellations: 0,
     revenueCancellations: {},
+    revenueNewSales: {},
     suspensions: 0,
     newMemberships: 0,
     newMembers: {},
@@ -352,10 +354,10 @@ function renderSummary() {
         <span><span class="mini-label">Total Active</span><strong class="mini-value">${number.format(row.activeMembers || 0)}</strong></span>
         <span><span class="mini-label">Standard</span><strong class="mini-value">${number.format(standardActive(row))}</strong></span>
         <span><span class="mini-label">Fitness Passport</span><strong class="mini-value">${number.format(row.fitnessPassportMembers || 0)}</strong></span>
-        <span><span class="mini-label">New MTD</span><strong class="mini-value">${number.format(row.newMembers?.currentMonthToDate?.total ?? row.newMemberships ?? 0)}</strong></span>
-        <span><span class="mini-label">Current Cancelled</span><strong class="mini-value negative">${number.format(currentMonthCancellations(row))}</strong></span>
+        <span><span class="mini-label">Paid New Sales MTD</span><strong class="mini-value">${number.format(currentRevenueNewSales(row))}</strong></span>
+        <span><span class="mini-label">Paid Cancellations MTD</span><strong class="mini-value negative">${number.format(currentMonthCancellations(row))}</strong></span>
         <span><span class="mini-label">Current Suspended</span><strong class="mini-value">${number.format(row.suspensions || 0)}</strong></span>
-        <span><span class="mini-label">NMM</span><strong class="mini-value ${movementClass(netMemberMovement(row))}">${formatSigned(netMemberMovement(row))}</strong></span>
+        <span><span class="mini-label">Revenue NMM</span><strong class="mini-value ${movementClass(netMemberMovement(row))}">${formatSigned(netMemberMovement(row))}</strong></span>
       </div>
       ${row.warning ? `<p class="note">${escapeHtml(row.warning)}</p>` : ""}
     </article>
@@ -424,7 +426,7 @@ function renderDetail() {
       <td>${number.format(row.fitnessPassportMembers || 0)}</td>
       <td>${number.format(currentMonthCancellations(row))}</td>
       <td>${number.format(row.suspensions || 0)}</td>
-      <td>${number.format(row.newMemberships || 0)}</td>
+      <td>${number.format(currentRevenueNewSales(row))}</td>
       <td class="${movementClass(netMemberMovement(row))}">${formatSigned(netMemberMovement(row))}</td>
       <td>${row.fallback ? "Fallback" : number.format(row.rowCount || 0)}</td>
     </tr>
@@ -527,14 +529,12 @@ function currentMonthCancellations(row) {
   return row.revenueCancellations?.currentMonthToDate?.total ?? row.cancellations ?? 0;
 }
 
-function currentStandardNewMembers(row) {
-  const current = row.movement?.currentMonthToDate;
-  if (current) return standardNewSales(current);
-  return row.standardNewMemberships ?? row.standardNewSales ?? (row.newMemberships || 0);
+function currentRevenueNewSales(row) {
+  return row.revenueNewSales?.currentMonthToDate?.total ?? 0;
 }
 
 function netMemberMovement(row) {
-  return currentStandardNewMembers(row) - currentMonthCancellations(row);
+  return currentRevenueNewSales(row) - currentMonthCancellations(row);
 }
 
 function movementClass(value) {

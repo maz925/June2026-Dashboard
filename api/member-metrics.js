@@ -7,7 +7,7 @@ const {
 } = require("./core-report.js");
 
 const DEFAULT_HAPANA_BASE_URL = "https://api.hapana.com/v2";
-const MEMBER_METRICS_VERSION = "member-metrics-aligned-movement-v29-2026-09-25";
+const MEMBER_METRICS_VERSION = "member-metrics-revenue-nmm-v30-2026-09-25";
 const STORAGE_PATH = "member-metrics.json";
 const REVENUE_STORAGE_PATH = "weekly-revenue.json";
 const TIME_ZONE = "Australia/Sydney";
@@ -595,6 +595,8 @@ function summariseRecords(records, { club, dateFrom, dateTo, reportingWeek, canc
   let suspensions = 0;
   const joinedMTD = new Set();
   const joinedWeek = new Set();
+  const paidSalesMTD = new Set();
+  const paidSalesWeek = new Set();
   const cancelledPreviousMonth = new Set();
   const cancelledMTD = new Set();
   const cancelledWeek = new Set();
@@ -610,6 +612,7 @@ function summariseRecords(records, { club, dateFrom, dateTo, reportingWeek, canc
     const status = field(record, ["Package Status", "Membership Status", "Status", "Client Status", "Member Status"]);
     const packageName = field(record, ["Package Name", "Membership Name", "Product Name"]);
     const packageCategory = field(record, ["Package Category", "Membership Category", "Product Category"]);
+    const packagePrice = parseMoney(field(record, ["Package Price", "Membership Price", "Price"]));
     const memberCreatedDate = bestDate(record, ["Member Created Date", "Join Date", "Client Created Date"]);
     const startDate = bestDate(record, ["Start Date", "Membership Start Date", "Contract Start Date", "Sale Date", "Sold Date", "Purchase Date", "Created Date", "Join Date", "Date Sold", "Member Created Date"]);
     const soldDate = bestDate(record, ["Date Sold", "Sale Date", "Sold Date", "Purchase Date", "Created Date", "Member Created Date", "Join Date"]);
@@ -626,6 +629,11 @@ function summariseRecords(records, { club, dateFrom, dateTo, reportingWeek, canc
       const identity = memberIdentity(record);
       if (inRange(memberCreatedDate, monthStart, end)) joinedMTD.add(identity);
       if (inRange(memberCreatedDate, weekStart, weekEnd)) joinedWeek.add(identity);
+    }
+    if (isRevenueImpactingSale({ packageName, packageCategory, packagePrice, saleDate: soldDate || startDate })) {
+      const identity = memberIdentity(record);
+      if (inRange(soldDate || startDate, monthStart, end)) paidSalesMTD.add(identity);
+      if (inRange(soldDate || startDate, weekStart, weekEnd)) paidSalesWeek.add(identity);
     }
     addCancellationForecast(cancellationForecast, cancellationWindows, cancelDate);
     addMovement(movement, windows, {
@@ -645,11 +653,17 @@ function summariseRecords(records, { club, dateFrom, dateTo, reportingWeek, canc
   }
 
   for (const record of cancelledRecords) {
-    if (isArmaCancellation(record)) continue;
     const packageName = field(record, ["Package Name", "Membership Name", "Product Name"]);
     const packageCategory = field(record, ["Package Category", "Membership Category", "Product Category"]);
     const packagePrice = parseMoney(field(record, ["Package Price", "Membership Price", "Price"]));
+    const soldDate = bestDate(record, ["Date Sold", "Sale Date", "Sold Date", "Purchase Date", "Created Date", "Membership Start Date", "Start Date"]);
     const cancelDate = bestDate(record, ["Cancel Date", "Cancelled Date", "Cancellation Date", "Terminated Date", "End Date"]);
+    if (isRevenueImpactingSale({ packageName, packageCategory, packagePrice, saleDate: soldDate })) {
+      const identity = memberIdentity(record);
+      if (inRange(soldDate, monthStart, end)) paidSalesMTD.add(identity);
+      if (inRange(soldDate, weekStart, weekEnd)) paidSalesWeek.add(identity);
+    }
+    if (isArmaCancellation(record)) continue;
     if (!isRevenueImpactingCancellation({ packageName, packageCategory, packagePrice, cancelDate })) continue;
 
     const identity = memberIdentity(record);
@@ -693,6 +707,18 @@ function summariseRecords(records, { club, dateFrom, dateTo, reportingWeek, canc
         total: cancelledMTD.size
       }
     },
+    revenueNewSales: {
+      currentWeek: {
+        dateFrom: reportingWeek.dateFrom,
+        dateTo: reportingWeek.dateTo,
+        total: paidSalesWeek.size
+      },
+      currentMonthToDate: {
+        dateFrom: hapanaDate(monthStart),
+        dateTo,
+        total: paidSalesMTD.size
+      }
+    },
     movement,
     cancellationForecast,
     dailyActive,
@@ -716,6 +742,7 @@ function totalRows(rows) {
     suspensions: rows.reduce((sum, row) => sum + (row.suspensions || 0), 0),
     newMemberships: rows.reduce((sum, row) => sum + (row.newMemberships || 0), 0),
     newMembers: totalNewMembers(rows),
+    revenueNewSales: totalWindowedMetric(rows, "revenueNewSales"),
     revenueCancellations: totalWindowedMetric(rows, "revenueCancellations"),
     movement: totalMovement(rows),
     cancellationForecast: totalCancellationForecast(rows),
@@ -915,6 +942,13 @@ function isNewMemberRecord({ packageName, packageCategory, memberCreatedDate }) 
 
 function isRevenueImpactingCancellation({ packageName, packageCategory, packagePrice, cancelDate }) {
   return Boolean(cancelDate)
+    && packagePrice > 0
+    && isOperatingClubMembership(packageCategory)
+    && !isExcludedNewSalePackage(packageName);
+}
+
+function isRevenueImpactingSale({ packageName, packageCategory, packagePrice, saleDate }) {
+  return Boolean(saleDate)
     && packagePrice > 0
     && isOperatingClubMembership(packageCategory)
     && !isExcludedNewSalePackage(packageName);
