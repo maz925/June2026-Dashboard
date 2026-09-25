@@ -7,7 +7,7 @@ const {
 } = require("./core-report.js");
 
 const DEFAULT_HAPANA_BASE_URL = "https://api.hapana.com/v2";
-const MEMBER_METRICS_VERSION = "member-metrics-revenue-nmm-v32-2026-09-25";
+const MEMBER_METRICS_VERSION = "member-metrics-revenue-nmm-v33-2026-09-25";
 const STORAGE_PATH = "member-metrics.json";
 const REVENUE_STORAGE_PATH = "weekly-revenue.json";
 const TIME_ZONE = "Australia/Sydney";
@@ -209,9 +209,13 @@ async function loadReportingWeek(dateTo) {
     .map((row) => ({
       dateFrom: row.dateFrom,
       dateTo: row.dateTo,
+      start: parseHapanaDate(row.dateFrom),
       end: parseHapanaDate(row.dateTo)
     }))
-    .filter((row) => row.end <= cutoff)
+    .filter((row) => {
+      const days = Math.round((row.end - row.start) / 86400000) + 1;
+      return row.end <= cutoff && days >= 5 && days <= 8;
+    })
     .sort((a, b) => b.end - a.end);
 
   if (!candidates.length) return fallback;
