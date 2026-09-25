@@ -7,7 +7,7 @@ const {
 } = require("./core-report.js");
 
 const DEFAULT_HAPANA_BASE_URL = "https://api.hapana.com/v2";
-const MEMBER_METRICS_VERSION = "member-metrics-isolated-club-refresh-v26-2026-09-25";
+const MEMBER_METRICS_VERSION = "member-metrics-exclude-arma-v27-2026-09-25";
 const STORAGE_PATH = "member-metrics.json";
 const REVENUE_STORAGE_PATH = "weekly-revenue.json";
 const TIME_ZONE = "Australia/Sydney";
@@ -641,6 +641,7 @@ function summariseRecords(records, { club, dateFrom, dateTo, reportingWeek, canc
   }
 
   for (const record of cancelledRecords) {
+    if (isArmaCancellation(record)) continue;
     const packageName = field(record, ["Package Name", "Membership Name", "Product Name"]);
     const packageCategory = field(record, ["Package Category", "Membership Category", "Product Category"]);
     const packagePrice = parseMoney(field(record, ["Package Price", "Membership Price", "Price"]));
@@ -909,6 +910,12 @@ function isRevenueImpactingCancellation({ packageName, packageCategory, packageP
     && packagePrice > 0
     && isOperatingClubMembership(packageCategory)
     && !isExcludedNewSalePackage(packageName);
+}
+
+function isArmaCancellation(record) {
+  return Object.values(record || {}).some((value) =>
+    /(^|[^a-z0-9])ARMA([^a-z0-9]|$)/i.test(String(value || ""))
+  );
 }
 
 function memberIdentity(record) {
