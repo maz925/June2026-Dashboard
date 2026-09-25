@@ -7,7 +7,7 @@ const {
 } = require("./core-report.js");
 
 const DEFAULT_HAPANA_BASE_URL = "https://api.hapana.com/v2";
-const MEMBER_METRICS_VERSION = "member-metrics-paid-cancellations-v25-2026-09-25";
+const MEMBER_METRICS_VERSION = "member-metrics-isolated-club-refresh-v26-2026-09-25";
 const STORAGE_PATH = "member-metrics.json";
 const REVENUE_STORAGE_PATH = "weekly-revenue.json";
 const TIME_ZONE = "Australia/Sydney";
@@ -55,6 +55,14 @@ module.exports = async function handler(request, response) {
       response.status(200).json(stored || {
         ...emptyPayload(),
         note: "No club was requested. Use /api/member-metrics?club=Bankstown, Wetherill%20Park, 580G, or Woolooware."
+      });
+      return;
+    }
+
+    if (targetLocations.length > 1) {
+      response.status(400).json({
+        error: "Refresh one club per request so Hapana location sessions cannot overwrite each other.",
+        clubs: targetLocations.map(({ club }) => club)
       });
       return;
     }

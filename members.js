@@ -1,4 +1,4 @@
-const MEMBER_APP_VERSION = "member-dashboard-local-api-fallback-v26-2026-09-25";
+const MEMBER_APP_VERSION = "member-dashboard-isolated-club-refresh-v27-2026-09-25";
 const REFRESH_CLUBS = ["Bankstown", "Wetherill Park", "580G", "Woolooware"];
 const MEMBER_API_ORIGIN = ["localhost", "127.0.0.1"].includes(window.location.hostname)
   ? "https://ufcgym-dashboard-june2026.vercel.app"
@@ -475,23 +475,30 @@ async function refreshMemberMetrics() {
   const originalText = button.textContent;
 
   try {
-    memberRefreshStatus.textContent = "Updating all clubs...";
-    const params = new URLSearchParams({
-      all: "1",
-      date_from: toHapanaDate(memberDateFrom.value),
-      date_to: toHapanaDate(memberDateTo.value),
-      source: "core"
-    });
-    const response = await fetch(memberApiUrl(params.toString()), {
-      headers: { "Accept": "application/json" }
-    });
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok && response.status !== 207) {
-      throw new Error(errorText(body.error || body || `HTTP ${response.status}`));
+    const failures = [];
+    for (const [index, club] of REFRESH_CLUBS.entries()) {
+      memberRefreshStatus.textContent = `Updating ${club} (${index + 1} of ${REFRESH_CLUBS.length})...`;
+      const params = new URLSearchParams({
+        club,
+        date_from: toHapanaDate(memberDateFrom.value),
+        date_to: toHapanaDate(memberDateTo.value),
+        source: "core"
+      });
+      try {
+        const response = await fetch(memberApiUrl(params.toString()), {
+          headers: { "Accept": "application/json" }
+        });
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok && response.status !== 207) {
+          throw new Error(errorText(body.error || body || `HTTP ${response.status}`));
+        }
+        for (const item of body.failures || []) {
+          failures.push(`${item.club || club}: ${errorText(item.error)}`);
+        }
+      } catch (error) {
+        failures.push(`${club}: ${errorText(error)}`);
+      }
     }
-    const failures = Array.isArray(body.failures)
-      ? body.failures.map((item) => `${item.club || "Club"}: ${errorText(item.error)}`)
-      : [];
 
     memberRefreshStatus.textContent = "Member data updated. Refreshing dashboard...";
     await loadMemberData();
