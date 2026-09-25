@@ -7,7 +7,7 @@ const {
 } = require("./core-report.js");
 
 const DEFAULT_HAPANA_BASE_URL = "https://api.hapana.com/v2";
-const MEMBER_METRICS_VERSION = "member-metrics-exclude-arma-v28-2026-09-25";
+const MEMBER_METRICS_VERSION = "member-metrics-aligned-movement-v29-2026-09-25";
 const STORAGE_PATH = "member-metrics.json";
 const REVENUE_STORAGE_PATH = "weekly-revenue.json";
 const TIME_ZONE = "Australia/Sydney";
@@ -595,6 +595,7 @@ function summariseRecords(records, { club, dateFrom, dateTo, reportingWeek, canc
   let suspensions = 0;
   const joinedMTD = new Set();
   const joinedWeek = new Set();
+  const cancelledPreviousMonth = new Set();
   const cancelledMTD = new Set();
   const cancelledWeek = new Set();
   const movement = emptyMovement(windows);
@@ -652,9 +653,13 @@ function summariseRecords(records, { club, dateFrom, dateTo, reportingWeek, canc
     if (!isRevenueImpactingCancellation({ packageName, packageCategory, packagePrice, cancelDate })) continue;
 
     const identity = memberIdentity(record);
+    if (inRange(cancelDate, windows.previousMonth.start, windows.previousMonth.end)) cancelledPreviousMonth.add(identity);
     if (inRange(cancelDate, monthStart, end)) cancelledMTD.add(identity);
     if (inRange(cancelDate, weekStart, weekEnd)) cancelledWeek.add(identity);
   }
+
+  movement.previousMonth.cancellations = cancelledPreviousMonth.size;
+  movement.currentMonthToDate.cancellations = cancelledMTD.size;
 
   return {
     club,

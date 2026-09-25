@@ -1,4 +1,4 @@
-const MEMBER_APP_VERSION = "member-dashboard-isolated-club-refresh-v27-2026-09-25";
+const MEMBER_APP_VERSION = "member-dashboard-aligned-movement-v28-2026-09-25";
 const REFRESH_CLUBS = ["Bankstown", "Wetherill Park", "580G", "Woolooware"];
 const MEMBER_API_ORIGIN = ["localhost", "127.0.0.1"].includes(window.location.hostname)
   ? "https://ufcgym-dashboard-june2026.vercel.app"
@@ -294,8 +294,8 @@ function renderMovement() {
   const previous = movement.previousMonth || {};
   const current = movement.currentMonthToDate || {};
 
-  setText("#previousMovementLabel", previous.label ? `Previous Month Membership Sales (${previous.label})` : "Previous Month Membership Sales");
-  setText("#currentMovementLabel", current.label ? `Current MTD Membership Sales (${current.label})` : "Current MTD Membership Sales");
+  setText("#previousMovementLabel", previous.label ? `Previous Month Active Membership Packages (${previous.label})` : "Previous Month Active Membership Packages");
+  setText("#currentMovementLabel", current.label ? `Current MTD Active Membership Packages (${current.label})` : "Current MTD Active Membership Packages");
   setText("#previousNewSales", number.format(previous.newSales || 0));
   setText("#previousStandardNewSales", number.format(standardNewSales(previous)));
   setText("#previousFitnessPassportNewSales", number.format(previous.fitnessPassportNewSales || 0));
@@ -304,7 +304,7 @@ function renderMovement() {
   setText("#currentNewSales", number.format(current.newSales || 0));
   setText("#currentStandardNewSales", number.format(standardNewSales(current)));
   setText("#currentFitnessPassportNewSales", number.format(current.fitnessPassportNewSales || 0));
-  setText("#currentCancellations", number.format(current.cancellations || 0));
+  setText("#currentCancellations", number.format(visibleTotals().revenueCancellations?.currentMonthToDate?.total ?? current.cancellations ?? 0));
   setText("#currentSuspensions", number.format(current.suspensions || 0));
 }
 
