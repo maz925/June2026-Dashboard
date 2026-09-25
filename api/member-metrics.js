@@ -7,7 +7,7 @@ const {
 } = require("./core-report.js");
 
 const DEFAULT_HAPANA_BASE_URL = "https://api.hapana.com/v2";
-const MEMBER_METRICS_VERSION = "member-metrics-exclude-arma-v27-2026-09-25";
+const MEMBER_METRICS_VERSION = "member-metrics-exclude-arma-v28-2026-09-25";
 const STORAGE_PATH = "member-metrics.json";
 const REVENUE_STORAGE_PATH = "weekly-revenue.json";
 const TIME_ZONE = "Australia/Sydney";
@@ -110,6 +110,9 @@ module.exports = async function handler(request, response) {
           reportingWeek,
           cancelledRecords: cancelled.records
         });
+        if (row.activeMembers < 100 || row.rowCount < 100) {
+          throw new Error(`Hapana returned an incomplete ${club} membership export (${row.activeMembers} active members across ${row.rowCount} rows)`);
+        }
         const warnings = [suspended.warning, cancelled.warning].filter(Boolean);
         if (warnings.length) row.warning = warnings.join(" ");
         rows.push(row);
@@ -191,7 +194,7 @@ function assertCronAccess(request) {
 }
 
 async function loadExistingMemberMetrics() {
-  const result = await get(STORAGE_PATH, { access: "private" }).catch(() => null);
+  const result = await get(STORAGE_PATH, { access: "private", useCache: false }).catch(() => null);
   if (!result || result.statusCode !== 200 || !result.stream) return null;
   return new Response(result.stream).json();
 }
@@ -199,7 +202,7 @@ async function loadExistingMemberMetrics() {
 async function loadReportingWeek(dateTo) {
   const cutoff = parseHapanaDate(dateTo);
   const fallback = completedWeekWindow(cutoff);
-  const result = await get(REVENUE_STORAGE_PATH, { access: "private" }).catch(() => null);
+  const result = await get(REVENUE_STORAGE_PATH, { access: "private", useCache: false }).catch(() => null);
   if (!result || result.statusCode !== 200 || !result.stream) return fallback;
 
   const payload = await new Response(result.stream).json().catch(() => null);
