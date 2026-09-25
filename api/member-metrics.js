@@ -7,7 +7,7 @@ const {
 } = require("./core-report.js");
 
 const DEFAULT_HAPANA_BASE_URL = "https://api.hapana.com/v2";
-const MEMBER_METRICS_VERSION = "member-metrics-revenue-nmm-v30-2026-09-25";
+const MEMBER_METRICS_VERSION = "member-metrics-revenue-nmm-v31-2026-09-25";
 const STORAGE_PATH = "member-metrics.json";
 const REVENUE_STORAGE_PATH = "weekly-revenue.json";
 const TIME_ZONE = "Australia/Sydney";
@@ -630,10 +630,10 @@ function summariseRecords(records, { club, dateFrom, dateTo, reportingWeek, canc
       if (inRange(memberCreatedDate, monthStart, end)) joinedMTD.add(identity);
       if (inRange(memberCreatedDate, weekStart, weekEnd)) joinedWeek.add(identity);
     }
-    if (isRevenueImpactingSale({ packageName, packageCategory, packagePrice, saleDate: soldDate || startDate })) {
+    if (isRevenueImpactingSale({ packageName, packageCategory, packagePrice, saleDate: memberCreatedDate })) {
       const identity = memberIdentity(record);
-      if (inRange(soldDate || startDate, monthStart, end)) paidSalesMTD.add(identity);
-      if (inRange(soldDate || startDate, weekStart, weekEnd)) paidSalesWeek.add(identity);
+      if (inRange(memberCreatedDate, monthStart, end)) paidSalesMTD.add(identity);
+      if (inRange(memberCreatedDate, weekStart, weekEnd)) paidSalesWeek.add(identity);
     }
     addCancellationForecast(cancellationForecast, cancellationWindows, cancelDate);
     addMovement(movement, windows, {
@@ -656,12 +656,12 @@ function summariseRecords(records, { club, dateFrom, dateTo, reportingWeek, canc
     const packageName = field(record, ["Package Name", "Membership Name", "Product Name"]);
     const packageCategory = field(record, ["Package Category", "Membership Category", "Product Category"]);
     const packagePrice = parseMoney(field(record, ["Package Price", "Membership Price", "Price"]));
-    const soldDate = bestDate(record, ["Date Sold", "Sale Date", "Sold Date", "Purchase Date", "Created Date", "Membership Start Date", "Start Date"]);
+    const memberCreatedDate = bestDate(record, ["Member Created Date", "Join Date", "Client Created Date"]);
     const cancelDate = bestDate(record, ["Cancel Date", "Cancelled Date", "Cancellation Date", "Terminated Date", "End Date"]);
-    if (isRevenueImpactingSale({ packageName, packageCategory, packagePrice, saleDate: soldDate })) {
+    if (isRevenueImpactingSale({ packageName, packageCategory, packagePrice, saleDate: memberCreatedDate })) {
       const identity = memberIdentity(record);
-      if (inRange(soldDate, monthStart, end)) paidSalesMTD.add(identity);
-      if (inRange(soldDate, weekStart, weekEnd)) paidSalesWeek.add(identity);
+      if (inRange(memberCreatedDate, monthStart, end)) paidSalesMTD.add(identity);
+      if (inRange(memberCreatedDate, weekStart, weekEnd)) paidSalesWeek.add(identity);
     }
     if (isArmaCancellation(record)) continue;
     if (!isRevenueImpactingCancellation({ packageName, packageCategory, packagePrice, cancelDate })) continue;
