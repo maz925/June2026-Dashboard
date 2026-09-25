@@ -87,23 +87,39 @@ body.members-theme .topbar {
 }
 
 body.graphs-theme {
-  --ink: #13202e;
-  --muted: #647284;
-  --line: #ced8e5;
-  --page: #f4f7fb;
+  --ink: #241437;
+  --muted: #70627f;
+  --line: #ddd1ea;
+  --page: #f7f4fa;
   --panel: #ffffff;
   --red: #c83d33;
   --red-bg: #fff0ef;
-  --green: #17834f;
-  --green-bg: #e8f7ef;
-  --amber: #a15c00;
-  --amber-bg: #fff5df;
-  --accent: #285ea8;
-  --charcoal: #18304f;
+  --green: #19705d;
+  --green-bg: #e9f6f2;
+  --amber: #9a5b08;
+  --amber-bg: #fff5e6;
+  --accent: #7c3aed;
+  --charcoal: #3b1f53;
 }
 
 body.graphs-theme .topbar {
-  background: linear-gradient(90deg, #141a22 0%, #18304f 58%, #285ea8 100%);
+  background: linear-gradient(90deg, #1c1526 0%, #4c1d6f 58%, #7c3aed 100%);
+}
+
+body.graphs-theme .metrics article,
+body.graphs-theme .cycle-panel,
+body.graphs-theme .graph-card,
+body.graphs-theme .comparison-table-wrap {
+  box-shadow: 0 10px 26px rgba(76, 29, 111, 0.08);
+}
+
+body.graphs-theme .comparison-total td {
+  background: #f4effa;
+}
+
+body.graphs-theme .trend-axis,
+body.graphs-theme .trend-grid {
+  stroke: #e7dff0;
 }
 
 .topbar {
