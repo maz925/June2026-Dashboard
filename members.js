@@ -1,4 +1,4 @@
-const MEMBER_APP_VERSION = "member-dashboard-unique-joins-v24-2026-09-25";
+const MEMBER_APP_VERSION = "member-dashboard-paid-cancellations-v25-2026-09-25";
 const REFRESH_CLUBS = ["Bankstown", "Wetherill Park", "580G", "Woolooware"];
 
 const number = new Intl.NumberFormat("en-AU", { maximumFractionDigits: 0 });
@@ -15,7 +15,7 @@ const state = {
     source: "Hapana Core Membership Detail",
     updated: null,
     clubs: [],
-    totals: { activeMembers: 0, standardActiveMembers: 0, fitnessPassportMembers: 0, cancellations: 0, suspensions: 0, newMemberships: 0, newMembers: {}, movement: {}, cancellationForecast: {}, dailyActive: [] },
+    totals: { activeMembers: 0, standardActiveMembers: 0, fitnessPassportMembers: 0, cancellations: 0, revenueCancellations: {}, suspensions: 0, newMemberships: 0, newMembers: {}, movement: {}, cancellationForecast: {}, dailyActive: [] },
     failures: []
   },
   connection: "loading"
@@ -110,6 +110,7 @@ function aggregateClubTotals(clubs) {
     standardActiveMembers: sum.standardActiveMembers + standardActive(row),
     fitnessPassportMembers: sum.fitnessPassportMembers + (row.fitnessPassportMembers || 0),
     cancellations: sum.cancellations + (row.cancellations || 0),
+    revenueCancellations: aggregateNewMembers(sum.revenueCancellations, row.revenueCancellations || {}),
     suspensions: sum.suspensions + (row.suspensions || 0),
     newMemberships: sum.newMemberships + (row.newMemberships || 0),
     newMembers: aggregateNewMembers(sum.newMembers, row.newMembers || {}),
@@ -121,6 +122,7 @@ function aggregateClubTotals(clubs) {
     standardActiveMembers: 0,
     fitnessPassportMembers: 0,
     cancellations: 0,
+    revenueCancellations: {},
     suspensions: 0,
     newMemberships: 0,
     newMembers: {},
@@ -260,12 +262,19 @@ function addNewMemberWindow(current = {}, next = {}) {
 
 function renderNewMembers() {
   const newMembers = visibleTotals().newMembers || {};
+  const cancellations = visibleTotals().revenueCancellations || {};
   const week = newMembers.currentWeek || {};
   const mtd = newMembers.currentMonthToDate || {};
+  const cancellationWeek = cancellations.currentWeek || {};
+  const cancellationMTD = cancellations.currentMonthToDate || {};
   setText("#weekNewMembers", number.format(week.total || 0));
   setText("#mtdNewMembers", number.format(mtd.total || 0));
+  setText("#weekRevenueCancellations", number.format(cancellationWeek.total || 0));
+  setText("#mtdRevenueCancellations", number.format(cancellationMTD.total || 0));
   setText("#weekNewMembersLabel", periodLabel("New Members - Current Week", week));
   setText("#mtdNewMembersLabel", periodLabel("New Members - MTD", mtd));
+  setText("#weekCancellationsLabel", periodLabel("Paid Cancellations - Current Week", cancellationWeek));
+  setText("#mtdCancellationsLabel", periodLabel("Paid Cancellations - MTD", cancellationMTD));
 }
 
 function periodLabel(label, window) {
@@ -501,7 +510,7 @@ function standardNewSales(row) {
 }
 
 function currentMonthCancellations(row) {
-  return row.cancellationForecast?.currentMonth?.cancellations || 0;
+  return row.revenueCancellations?.currentMonthToDate?.total ?? row.cancellations ?? 0;
 }
 
 function currentStandardNewMembers(row) {
