@@ -4,7 +4,7 @@ const {
   downloadCoreReportCsv
 } = require("./core-report.js");
 
-const FITNESS_METRICS_VERSION = "fitness-metrics-hapana-v3-2026-09-29";
+const FITNESS_METRICS_VERSION = "fitness-metrics-hapana-v4-2026-09-29";
 const STORAGE_PATH = "fitness-metrics.json";
 const TARGETS_STORAGE_PATH = "fitness-targets.json";
 const WEEKLY_REVENUE_STORAGE_PATH = "weekly-revenue.json";
@@ -229,10 +229,7 @@ async function buildFitnessRow(csv, { club, location, window, targetOverrides = 
   const reportNotes = [];
   const targets = targetsForClub(club, targetOverrides);
 
-  const participation = await optionalParticipationMetrics({ location, window }).catch((error) => {
-    reportNotes.push(error.message);
-    return {};
-  });
+  const participation = await optionalParticipationMetrics({ location, window, reportNotes });
   const classCosts = await optionalClassCostMetrics({ location, window }).catch((error) => {
     reportNotes.push(error.message);
     return {};
@@ -288,34 +285,42 @@ function summariseNetRevenue(records) {
   return actuals;
 }
 
-async function optionalParticipationMetrics({ location, window }) {
+async function optionalParticipationMetrics({ location, window, reportNotes = [] }) {
   const attendanceFilter = process.env.HAPANA_FITNESS_ATTENDANCE_FILTER || "AttendanceBySession";
-  const checkinFilter = process.env.HAPANA_FITNESS_CHECKIN_FILTER;
+  const checkinFilter = process.env.HAPANA_FITNESS_CHECKIN_FILTER || "ClientCheckIn";
   if (!attendanceFilter && !checkinFilter) return {};
 
   const metrics = {};
   if (attendanceFilter) {
-    const csv = await downloadCoreAdvancedReportCsv({
-      locationName: location,
-      dateFrom: window.dateFrom,
-      dateTo: window.dateTo,
-      filter: attendanceFilter,
-      reportType: process.env.HAPANA_FITNESS_ATTENDANCE_REPORT_TYPE || "client",
-      extraParams: paramsFromEnv("HAPANA_FITNESS_ATTENDANCE_PARAMS")
-    });
-    metrics.totalClassAttendance = sumAttendanceRows(parseDelimited(csv));
+    try {
+      const csv = await downloadCoreAdvancedReportCsv({
+        locationName: location,
+        dateFrom: window.dateFrom,
+        dateTo: window.dateTo,
+        filter: attendanceFilter,
+        reportType: process.env.HAPANA_FITNESS_ATTENDANCE_REPORT_TYPE || "client",
+        extraParams: paramsFromEnv("HAPANA_FITNESS_ATTENDANCE_PARAMS")
+      });
+      metrics.totalClassAttendance = sumAttendanceRows(parseDelimited(csv));
+    } catch (error) {
+      reportNotes.push(`Class attendance report: ${errorText(error)}`);
+    }
   }
 
   if (checkinFilter) {
-    const csv = await downloadCoreAdvancedReportCsv({
-      locationName: location,
-      dateFrom: window.dateFrom,
-      dateTo: window.dateTo,
-      filter: checkinFilter,
-      reportType: process.env.HAPANA_FITNESS_CHECKIN_REPORT_TYPE || "client",
-      extraParams: paramsFromEnv("HAPANA_FITNESS_CHECKIN_PARAMS")
-    });
-    metrics.totalCheckins = sumCheckinRows(parseDelimited(csv));
+    try {
+      const csv = await downloadCoreAdvancedReportCsv({
+        locationName: location,
+        dateFrom: window.dateFrom,
+        dateTo: window.dateTo,
+        filter: checkinFilter,
+        reportType: process.env.HAPANA_FITNESS_CHECKIN_REPORT_TYPE || "client",
+        extraParams: paramsFromEnv("HAPANA_FITNESS_CHECKIN_PARAMS")
+      });
+      metrics.totalCheckins = sumCheckinRows(parseDelimited(csv));
+    } catch (error) {
+      reportNotes.push(`Client Check-In report: ${errorText(error)}`);
+    }
   }
 
   return metrics;
@@ -380,6 +385,7 @@ function focusFor(actuals, targets, notes) {
   if (!actuals.totalCheckins && !actuals.totalClassAttendance) {
     return "Revenue metrics loaded from Hapana. Configure attendance/check-in report filters to populate utilisation.";
   }
+  if (!actuals.totalCheckins) return notes.find((note) => note.startsWith("Client Check-In report:")) || "Client Check-In data is unavailable for the selected period.";
   if (actuals.ptMmaPacksSold < targets.ptMmaPacksSold) return "PT/MMA pack sales are below target for the selected week.";
   if (actuals.paidClassCosts > targets.classCostBudget) return "Paid class costs are currently tracking above budget.";
   if (notes.length) return notes[0];
