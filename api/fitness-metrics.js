@@ -4,7 +4,7 @@ const {
   downloadCoreReportCsv
 } = require("./core-report.js");
 
-const FITNESS_METRICS_VERSION = "fitness-metrics-hapana-v5-2026-09-29";
+const FITNESS_METRICS_VERSION = "fitness-metrics-hapana-v6-2026-09-29";
 const STORAGE_PATH = "fitness-metrics.json";
 const TARGETS_STORAGE_PATH = "fitness-targets.json";
 const WEEKLY_REVENUE_STORAGE_PATH = "weekly-revenue.json";
@@ -220,7 +220,7 @@ function periodsFromRows(rows, currentWindow) {
     dateFrom: currentWindow.dateFrom,
     dateTo: currentWindow.dateTo
   };
-  return rowPeriods.length ? rowPeriods.sort((a, b) => b.id.localeCompare(a.id)) : [fallback];
+  return rowPeriods.length ? rowPeriods.sort(comparePeriods) : [fallback];
 }
 
 async function buildFitnessRow(csv, { club, location, window, targetOverrides = {} }) {
@@ -501,9 +501,22 @@ function periodId(periodMode, startIso, endIso) {
 
 function samePeriodWindow(row, window) {
   if (row.period === window.period) return true;
-  return row.periodMode === window.periodMode
-    && row.dateFrom === window.dateFrom
+  return row.dateFrom === window.dateFrom
     && row.dateTo === window.dateTo;
+}
+
+function comparePeriods(a, b) {
+  const endDate = sortableHapanaDate(b.dateTo).localeCompare(sortableHapanaDate(a.dateTo));
+  if (endDate) return endDate;
+  const startDate = sortableHapanaDate(b.dateFrom).localeCompare(sortableHapanaDate(a.dateFrom));
+  if (startDate) return startDate;
+  const modeOrder = { week: 0, mtd: 1, month: 2, custom: 3 };
+  return (modeOrder[a.periodMode] ?? 9) - (modeOrder[b.periodMode] ?? 9);
+}
+
+function sortableHapanaDate(value) {
+  const [day, month, year] = String(value || "").split("/");
+  return year && month && day ? `${year}-${month}-${day}` : "";
 }
 
 function periodLabel(periodMode, start, end) {
@@ -528,7 +541,7 @@ function periodLabel(periodMode, start, end) {
 function sortRows(rows) {
   const order = new Map(LOCATIONS.map((location, index) => [location.club, index]));
   return [...rows].sort((a, b) =>
-    String(b.period).localeCompare(String(a.period)) ||
+    comparePeriods(a, b) ||
     (order.get(a.club) ?? 99) - (order.get(b.club) ?? 99)
   );
 }
