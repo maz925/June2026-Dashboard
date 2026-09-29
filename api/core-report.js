@@ -101,6 +101,7 @@ module.exports = async function handler(request, response) {
         version: CORE_REPORT_VERSION,
         location: locationName,
         filters,
+        reportNavigation: extractLinksMatching(reportsHtml, /report/i),
         reportLinks: extractReportLinks(reportsHtml),
         fields: extractRelevantReportFields(reportsHtml),
         snippets: extractDebugSnippets(reportsHtml, [
@@ -556,6 +557,28 @@ function extractReportLinks(html) {
         query: queryParamsFromText(snippet)
       });
     }
+  }
+
+  return output.slice(0, 80);
+}
+
+function extractLinksMatching(html, pattern) {
+  const output = [];
+
+  for (const match of String(html || "").matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi)) {
+    const attributes = match[1] || "";
+    const text = textSnippet(match[2] || "");
+    const href = attr(attributes, "href");
+    const onclick = attr(attributes, "onclick");
+    if (!pattern.test(`${text} ${href} ${onclick}`)) continue;
+    pattern.lastIndex = 0;
+    output.push({
+      text: text.slice(0, 180),
+      attributes: decodeHtml(attributes).replace(/\s+/g, " ").trim().slice(0, 2000),
+      href,
+      onclick,
+      query: queryParamsFromText(`${href} ${onclick}`)
+    });
   }
 
   return output.slice(0, 80);
