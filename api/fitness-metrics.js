@@ -4,7 +4,7 @@ const {
   downloadCoreReportCsv
 } = require("./core-report.js");
 
-const FITNESS_METRICS_VERSION = "fitness-metrics-hapana-v4-2026-09-29";
+const FITNESS_METRICS_VERSION = "fitness-metrics-hapana-v5-2026-09-29";
 const STORAGE_PATH = "fitness-metrics.json";
 const TARGETS_STORAGE_PATH = "fitness-targets.json";
 const WEEKLY_REVENUE_STORAGE_PATH = "weekly-revenue.json";
@@ -287,7 +287,7 @@ function summariseNetRevenue(records) {
 
 async function optionalParticipationMetrics({ location, window, reportNotes = [] }) {
   const attendanceFilter = process.env.HAPANA_FITNESS_ATTENDANCE_FILTER || "AttendanceBySession";
-  const checkinFilter = process.env.HAPANA_FITNESS_CHECKIN_FILTER || "ClientCheckIn";
+  const checkinFilter = process.env.HAPANA_FITNESS_CHECKIN_FILTER || "checkin";
   if (!attendanceFilter && !checkinFilter) return {};
 
   const metrics = {};
