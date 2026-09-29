@@ -4,7 +4,7 @@ const {
   downloadCoreReportCsv
 } = require("./core-report.js");
 
-const FITNESS_METRICS_VERSION = "fitness-metrics-hapana-v2-2026-09-29";
+const FITNESS_METRICS_VERSION = "fitness-metrics-hapana-v3-2026-09-29";
 const STORAGE_PATH = "fitness-metrics.json";
 const TARGETS_STORAGE_PATH = "fitness-targets.json";
 const WEEKLY_REVENUE_STORAGE_PATH = "weekly-revenue.json";
@@ -151,7 +151,28 @@ function assertCronAccess(request) {
 async function loadStoredFitnessMetrics() {
   const result = await get(STORAGE_PATH, { access: "private", useCache: false }).catch(() => null);
   if (!result || result.statusCode !== 200 || !result.stream) return emptyPayload();
-  return new Response(result.stream).json();
+  const payload = await new Response(result.stream).json();
+  return normaliseStoredFitnessMetrics(payload);
+}
+
+function normaliseStoredFitnessMetrics(payload) {
+  return {
+    ...payload,
+    version: FITNESS_METRICS_VERSION,
+    kpiGroups: KPI_GROUPS,
+    rows: (payload.rows || []).map((row) => {
+      const actuals = { ...(row.actuals || {}) };
+      actuals.totalClassCapacity = Number(actuals.totalClassCapacity || row.targets?.totalClassCapacity || 0);
+      actuals.classParticipationRatio = actuals.totalClassCapacity
+        ? round1(((actuals.totalClassAttendance || 0) / actuals.totalClassCapacity) * 100)
+        : 0;
+      return {
+        ...row,
+        actuals,
+        focus: String(row.focus || "").replace(/participation/gi, "utilisation")
+      };
+    })
+  };
 }
 
 async function loadStoredFitnessTargets() {

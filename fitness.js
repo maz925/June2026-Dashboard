@@ -1,4 +1,4 @@
-const FITNESS_APP_VERSION = "fitness-kpi-dashboard-v5-2026-09-29";
+const FITNESS_APP_VERSION = "fitness-kpi-dashboard-v6-2026-09-29";
 
 const money = new Intl.NumberFormat("en-AU", {
   style: "currency",
@@ -236,6 +236,31 @@ function round1(value) {
 
 function utilisationRatio(attendance, capacity) {
   return capacity ? round1(((attendance || 0) / capacity) * 100) : 0;
+}
+
+function normaliseFitnessRow(item) {
+  const actuals = { ...(item.actuals || {}) };
+  actuals.totalClassCapacity = Number(actuals.totalClassCapacity || item.targets?.totalClassCapacity || 0);
+  actuals.classParticipationRatio = utilisationRatio(
+    actuals.totalClassAttendance,
+    actuals.totalClassCapacity
+  );
+  return {
+    ...item,
+    actuals,
+    focus: String(item.focus || "").replace(/participation/gi, "utilisation")
+  };
+}
+
+function normaliseKpiGroups(groups) {
+  return groups.map((group) => ({
+    ...group,
+    title: group.title === "Class Participation Ratio" ? "Class Utilisation Ratio" : group.title,
+    kpis: group.kpis.map((kpi) => ({
+      ...kpi,
+      label: kpi.key === "classParticipationRatio" ? "Class Utilisation Ratio" : kpi.label
+    }))
+  }));
 }
 
 function escapeHtml(value) {
@@ -1029,12 +1054,14 @@ async function loadFitnessData() {
     if (!response.ok) throw new Error(`Fitness metrics returned ${response.status}`);
     const payload = await response.json();
     if (!Array.isArray(payload.rows)) throw new Error("Fitness metrics returned invalid rows");
+    const kpiGroups = payload.kpiGroups?.length ? payload.kpiGroups : fitnessData.kpiGroups;
     fitnessData = {
       ...fitnessData,
       ...payload,
+      rows: payload.rows.map(normaliseFitnessRow),
       periods: payload.periods?.length ? payload.periods : fitnessData.periods,
       clubs: payload.clubs?.length ? payload.clubs : fitnessData.clubs,
-      kpiGroups: payload.kpiGroups?.length ? payload.kpiGroups : fitnessData.kpiGroups
+      kpiGroups: normaliseKpiGroups(kpiGroups)
     };
     allKpis = fitnessData.kpiGroups.flatMap((group) => group.kpis);
     state.period = fitnessData.periods[0]?.id || state.period;
