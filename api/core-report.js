@@ -105,6 +105,7 @@ module.exports = async function handler(request, response) {
         fields: extractRelevantReportFields(reportsHtml),
         snippets: extractDebugSnippets(reportsHtml, [
           "Client Check-In",
+          "Check-In",
           "Summary by Client",
           "Total Attendance Count",
           "show_general_checkin",
@@ -535,6 +536,7 @@ function extractReportLinks(html) {
     if (!relevant.test(combined)) continue;
     output.push({
       text: text.slice(0, 180),
+      attributes: decodeHtml(open).replace(/\s+/g, " ").trim().slice(0, 2000),
       href,
       onclick,
       filters: [...new Set(combined.match(/get[A-Za-z0-9_]+/g) || [])],
