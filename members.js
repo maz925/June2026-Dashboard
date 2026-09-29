@@ -1,4 +1,4 @@
-const MEMBER_APP_VERSION = "member-dashboard-revenue-nmm-v29-2026-09-25";
+const MEMBER_APP_VERSION = "member-dashboard-membership-nmm-v30-2026-09-29";
 const REFRESH_CLUBS = ["Bankstown", "Wetherill Park", "580G", "Woolooware"];
 const MEMBER_API_ORIGIN = ["localhost", "127.0.0.1"].includes(window.location.hostname)
   ? "https://ufcgym-dashboard-june2026.vercel.app"
@@ -276,14 +276,20 @@ function renderNewMembers() {
   const mtd = newMembers.currentMonthToDate || {};
   const cancellationWeek = cancellations.currentWeek || {};
   const cancellationMTD = cancellations.currentMonthToDate || {};
+  const weekNmm = (week.total || 0) - (cancellationWeek.total || 0);
+  const mtdNmm = (mtd.total || 0) - (cancellationMTD.total || 0);
   setText("#weekNewMembers", number.format(week.total || 0));
   setText("#mtdNewMembers", number.format(mtd.total || 0));
   setText("#weekRevenueCancellations", number.format(cancellationWeek.total || 0));
   setText("#mtdRevenueCancellations", number.format(cancellationMTD.total || 0));
-  setText("#weekNewMembersLabel", periodLabel("New Members - Current Week", week));
-  setText("#mtdNewMembersLabel", periodLabel("New Members - MTD", mtd));
+  setSignedMovement("#weekNmm", weekNmm);
+  setSignedMovement("#mtdNmm", mtdNmm);
+  setText("#weekNewMembersLabel", periodLabel("New Memberships - Current Week", week));
+  setText("#mtdNewMembersLabel", periodLabel("New Memberships - MTD", mtd));
   setText("#weekCancellationsLabel", periodLabel("Paid Cancellations - Current Week", cancellationWeek));
   setText("#mtdCancellationsLabel", periodLabel("Paid Cancellations - MTD", cancellationMTD));
+  setText("#weekNmmLabel", periodLabel("NMM - Current Week", week));
+  setText("#mtdNmmLabel", periodLabel("NMM - MTD", mtd));
 }
 
 function periodLabel(label, window) {
@@ -354,10 +360,10 @@ function renderSummary() {
         <span><span class="mini-label">Total Active</span><strong class="mini-value">${number.format(row.activeMembers || 0)}</strong></span>
         <span><span class="mini-label">Standard</span><strong class="mini-value">${number.format(standardActive(row))}</strong></span>
         <span><span class="mini-label">Fitness Passport</span><strong class="mini-value">${number.format(row.fitnessPassportMembers || 0)}</strong></span>
-        <span><span class="mini-label">Paid New Sales MTD</span><strong class="mini-value">${number.format(currentRevenueNewSales(row))}</strong></span>
+        <span><span class="mini-label">New Memberships MTD</span><strong class="mini-value">${number.format(currentMonthNewMemberships(row))}</strong></span>
         <span><span class="mini-label">Paid Cancellations MTD</span><strong class="mini-value negative">${number.format(currentMonthCancellations(row))}</strong></span>
         <span><span class="mini-label">Current Suspended</span><strong class="mini-value">${number.format(row.suspensions || 0)}</strong></span>
-        <span><span class="mini-label">Revenue NMM</span><strong class="mini-value ${movementClass(netMemberMovement(row))}">${formatSigned(netMemberMovement(row))}</strong></span>
+        <span><span class="mini-label">NMM MTD</span><strong class="mini-value ${movementClass(netMemberMovement(row))}">${formatSigned(netMemberMovement(row))}</strong></span>
       </div>
       ${row.warning ? `<p class="note">${escapeHtml(row.warning)}</p>` : ""}
     </article>
@@ -426,7 +432,7 @@ function renderDetail() {
       <td>${number.format(row.fitnessPassportMembers || 0)}</td>
       <td>${number.format(currentMonthCancellations(row))}</td>
       <td>${number.format(row.suspensions || 0)}</td>
-      <td>${number.format(currentRevenueNewSales(row))}</td>
+      <td>${number.format(currentMonthNewMemberships(row))}</td>
       <td class="${movementClass(netMemberMovement(row))}">${formatSigned(netMemberMovement(row))}</td>
       <td>${row.fallback ? "Fallback" : number.format(row.rowCount || 0)}</td>
     </tr>
@@ -529,12 +535,19 @@ function currentMonthCancellations(row) {
   return row.revenueCancellations?.currentMonthToDate?.total ?? row.cancellations ?? 0;
 }
 
-function currentRevenueNewSales(row) {
-  return row.revenueNewSales?.currentMonthToDate?.total ?? 0;
+function currentMonthNewMemberships(row) {
+  return row.newMembers?.currentMonthToDate?.total ?? row.newMemberships ?? 0;
 }
 
 function netMemberMovement(row) {
-  return currentRevenueNewSales(row) - currentMonthCancellations(row);
+  return currentMonthNewMemberships(row) - currentMonthCancellations(row);
+}
+
+function setSignedMovement(selector, value) {
+  const element = document.querySelector(selector);
+  element.textContent = formatSigned(value);
+  element.classList.remove("positive", "negative", "muted-value");
+  element.classList.add(movementClass(value));
 }
 
 function movementClass(value) {

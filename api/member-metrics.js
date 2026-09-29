@@ -7,7 +7,7 @@ const {
 } = require("./core-report.js");
 
 const DEFAULT_HAPANA_BASE_URL = "https://api.hapana.com/v2";
-const MEMBER_METRICS_VERSION = "member-metrics-revenue-nmm-v33-2026-09-25";
+const MEMBER_METRICS_VERSION = "member-metrics-membership-nmm-v34-2026-09-29";
 const STORAGE_PATH = "member-metrics.json";
 const REVENUE_STORAGE_PATH = "weekly-revenue.json";
 const TIME_ZONE = "Australia/Sydney";
@@ -721,6 +721,18 @@ function summariseRecords(records, { club, dateFrom, dateTo, reportingWeek, canc
         total: paidSalesMTD.size
       }
     },
+    netMemberMovement: {
+      currentWeek: {
+        dateFrom: reportingWeek.dateFrom,
+        dateTo: reportingWeek.dateTo,
+        total: joinedWeek.size - cancelledWeek.size
+      },
+      currentMonthToDate: {
+        dateFrom: hapanaDate(monthStart),
+        dateTo,
+        total: joinedMTD.size - cancelledMTD.size
+      }
+    },
     movement,
     cancellationForecast,
     dailyActive,
@@ -746,6 +758,7 @@ function totalRows(rows) {
     newMembers: totalNewMembers(rows),
     revenueNewSales: totalWindowedMetric(rows, "revenueNewSales"),
     revenueCancellations: totalWindowedMetric(rows, "revenueCancellations"),
+    netMemberMovement: totalWindowedMetric(rows, "netMemberMovement"),
     movement: totalMovement(rows),
     cancellationForecast: totalCancellationForecast(rows),
     dailyActive: [...byDate.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, active]) => ({ date, active }))
