@@ -4,7 +4,7 @@ const {
   downloadCoreReportCsv
 } = require("./core-report.js");
 
-const FITNESS_METRICS_VERSION = "fitness-metrics-hapana-v1-2026-09-10";
+const FITNESS_METRICS_VERSION = "fitness-metrics-hapana-v2-2026-09-29";
 const STORAGE_PATH = "fitness-metrics.json";
 const TARGETS_STORAGE_PATH = "fitness-targets.json";
 const WEEKLY_REVENUE_STORAGE_PATH = "weekly-revenue.json";
@@ -19,12 +19,12 @@ const LOCATIONS = [
 
 const KPI_GROUPS = [
   {
-    title: "Class Participation Ratio",
+    title: "Class Utilisation Ratio",
     kpis: [
       { key: "totalCheckins", label: "Total Check-ins", type: "number", target: "minimum" },
       { key: "totalClassAttendance", label: "Total Class Attendance", type: "number", target: "minimum" },
       { key: "totalClassCapacity", label: "Total Class Capacity", type: "number", target: "reference" },
-      { key: "classParticipationRatio", label: "Class Participation Ratio", type: "percent", target: "minimum" }
+      { key: "classParticipationRatio", label: "Class Utilisation Ratio", type: "percent", target: "minimum" }
     ]
   },
   {
@@ -218,10 +218,10 @@ async function buildFitnessRow(csv, { club, location, window, targetOverrides = 
   });
 
   Object.assign(actuals, participation, classCosts);
-  actuals.classParticipationRatio = actuals.totalCheckins
-    ? round1((actuals.totalClassAttendance / actuals.totalCheckins) * 100)
-    : 0;
   actuals.totalClassCapacity = targets.totalClassCapacity || 0;
+  actuals.classParticipationRatio = actuals.totalClassCapacity
+    ? round1((actuals.totalClassAttendance / actuals.totalClassCapacity) * 100)
+    : 0;
   actuals.paidClassCosts = round2((actuals.conditioningClassCosts || 0) + (actuals.skillsClassCosts || 0)) || actuals.paidClassCosts || 0;
   actuals.classCostBudget = targets.classCostBudget || 0;
 
@@ -357,7 +357,7 @@ function targetsForClub(club, targetOverrides = {}) {
 
 function focusFor(actuals, targets, notes) {
   if (!actuals.totalCheckins && !actuals.totalClassAttendance) {
-    return "Revenue metrics loaded from Hapana. Configure attendance/check-in report filters to populate participation.";
+    return "Revenue metrics loaded from Hapana. Configure attendance/check-in report filters to populate utilisation.";
   }
   if (actuals.ptMmaPacksSold < targets.ptMmaPacksSold) return "PT/MMA pack sales are below target for the selected week.";
   if (actuals.paidClassCosts > targets.classCostBudget) return "Paid class costs are currently tracking above budget.";

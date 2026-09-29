@@ -38,7 +38,7 @@
       </label>
       <div class="tabs" role="tablist" aria-label="Views">
         <button class="tab active" type="button" data-view="scorecard">Scorecard</button>
-        <button class="tab" type="button" data-view="participation">Participation</button>
+        <button class="tab" type="button" data-view="participation">Utilisation</button>
         <button class="tab" type="button" data-view="ptRevenue">PT Revenue</button>
         <button class="tab" type="button" data-view="rentCosts">Rent & Costs</button>
         <button class="tab" type="button" data-view="recruitment">Recruitment</button>
@@ -63,7 +63,7 @@
         <strong id="classCapacity"></strong>
       </article>
       <article>
-        <span>Participation Ratio</span>
+        <span>Utilisation Ratio</span>
         <strong id="participationRatio"></strong>
       </article>
       <article>
@@ -119,19 +119,19 @@
     <section class="view active" id="scorecardView">
       <div class="section-heading">
         <h2>Fitness KPI Scorecard</h2>
-        <p>Club performance against participation, PT revenue, rent and class cost targets.</p>
+        <p>Club performance against utilisation, PT revenue, rent and class cost targets.</p>
       </div>
       <div class="fitness-scorecard" id="fitnessScorecard"></div>
     </section>
 
     <section class="view" id="participationView">
       <div class="section-heading">
-        <h2>Class Participation Ratio</h2>
-        <p>Total check-ins compared with total class attendance.</p>
+        <h2>Class Utilisation Ratio</h2>
+        <p>Total class attendance as a percentage of total class capacity.</p>
       </div>
-      <section class="trend-card" aria-label="Class participation ratio trend">
+      <section class="trend-card" aria-label="Class utilisation ratio trend">
         <div class="trend-head">
-          <h3>Participation Trend</h3>
+          <h3>Utilisation Trend</h3>
           <p id="trendNote"></p>
         </div>
         <div class="trend-chart" id="fitnessTrend"></div>
@@ -254,6 +254,6 @@
 
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="auth.js"></script>
-  <script src="fitness.js?v=2026-09-16-fitness-log"></script>
+  <script src="fitness.js?v=2026-09-29-utilisation"></script>
 </body>
 </html>

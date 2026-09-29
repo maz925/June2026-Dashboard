@@ -1,4 +1,4 @@
-const FITNESS_APP_VERSION = "fitness-kpi-dashboard-v4-2026-09-16";
+const FITNESS_APP_VERSION = "fitness-kpi-dashboard-v5-2026-09-29";
 
 const money = new Intl.NumberFormat("en-AU", {
   style: "currency",
@@ -18,12 +18,12 @@ let fitnessData = {
   clubs: ["Bankstown", "Wetherill Park", "580G", "Woolooware"],
   kpiGroups: [
     {
-      title: "Class Participation Ratio",
+      title: "Class Utilisation Ratio",
       kpis: [
         { key: "totalCheckins", label: "Total Check-ins", type: "number", target: "minimum" },
         { key: "totalClassAttendance", label: "Total Class Attendance", type: "number", target: "minimum" },
         { key: "totalClassCapacity", label: "Total Class Capacity", type: "number", target: "reference" },
-        { key: "classParticipationRatio", label: "Class Participation Ratio", type: "percent", target: "minimum" }
+        { key: "classParticipationRatio", label: "Class Utilisation Ratio", type: "percent", target: "minimum" }
       ]
     },
     {
@@ -54,16 +54,16 @@ let fitnessData = {
   ],
   rows: [
     row("2026-09", "Bankstown", [7120, 2645, 37.1, 22, 188, 18400, 12800, 9, 7200, 4200, 3300, 7500], [7600, 3000, 39, 26, 205, 21000, 14000, 10, 7800, 4100, 3100, 7200], "Lift class attendance from member check-ins and close the PT pack gap."),
-    row("2026-09", "Wetherill Park", [7680, 3355, 43.7, 31, 232, 24600, 16400, 12, 9600, 4500, 3600, 8100], [7500, 3300, 42, 29, 225, 23500, 15800, 12, 9300, 4600, 3500, 8300], "Protect strong participation while keeping class costs under budget."),
-    row("2026-09", "580G", [5840, 1920, 32.9, 17, 151, 14900, 9800, 7, 5600, 3600, 2900, 6500], [6200, 2300, 37, 22, 175, 18000, 12000, 8, 6400, 3500, 2800, 6200], "Rebuild class participation and PT pack sales this week."),
+    row("2026-09", "Wetherill Park", [7680, 3355, 43.7, 31, 232, 24600, 16400, 12, 9600, 4500, 3600, 8100], [7500, 3300, 42, 29, 225, 23500, 15800, 12, 9300, 4600, 3500, 8300], "Protect strong utilisation while keeping class costs under budget."),
+    row("2026-09", "580G", [5840, 1920, 32.9, 17, 151, 14900, 9800, 7, 5600, 3600, 2900, 6500], [6200, 2300, 37, 22, 175, 18000, 12000, 8, 6400, 3500, 2800, 6200], "Rebuild class utilisation and PT pack sales this week."),
     row("2026-09", "Woolooware", [6410, 2440, 38.1, 24, 172, 17600, 11900, 8, 6800, 3900, 3100, 7000], [6600, 2550, 39, 25, 185, 19000, 12800, 9, 7000, 3900, 3000, 6900], "Near plan; watch sessions performed and paid class costs."),
-    row("2026-08", "Bankstown", [22100, 8920, 40.4, 91, 646, 70200, 44600, 10, 29400, 15100, 11900, 27000], [21800, 8500, 39, 88, 640, 69000, 43000, 10, 28600, 15000, 11600, 26600], "August finished ahead on participation and PT revenue."),
+    row("2026-08", "Bankstown", [22100, 8920, 40.4, 91, 646, 70200, 44600, 10, 29400, 15100, 11900, 27000], [21800, 8500, 39, 88, 640, 69000, 43000, 10, 28600, 15000, 11600, 26600], "August finished ahead on utilisation and PT revenue."),
     row("2026-08", "Wetherill Park", [23650, 10280, 43.5, 104, 702, 79200, 50700, 12, 37200, 16800, 13200, 30000], [23000, 9800, 42, 98, 680, 76000, 48000, 12, 36000, 16900, 13000, 29900], "Strong PT revenue and rent collection; costs slightly high."),
-    row("2026-08", "580G", [18320, 6540, 35.7, 72, 498, 54800, 37300, 8, 22400, 12600, 10100, 22700], [19000, 7100, 37, 78, 535, 61000, 38000, 8, 24800, 12800, 10000, 22800], "PT revenue and participation were below target."),
+    row("2026-08", "580G", [18320, 6540, 35.7, 72, 498, 54800, 37300, 8, 22400, 12600, 10100, 22700], [19000, 7100, 37, 78, 535, 61000, 38000, 8, 24800, 12800, 10000, 22800], "PT revenue and utilisation were below target."),
     row("2026-08", "Woolooware", [19860, 7710, 38.8, 82, 552, 61300, 40000, 9, 26000, 14200, 10900, 25100], [20000, 7800, 39, 84, 560, 62000, 40000, 9, 26100, 14100, 10800, 24900], "Almost exactly on plan with a small class cost overrun."),
-    row("2026-07", "Bankstown", [21450, 8200, 38.2, 84, 612, 66100, 45100, 10, 28200, 14900, 11100, 26000], [21600, 8300, 38.5, 86, 625, 67000, 45000, 10, 28300, 15000, 11200, 26200], "July was stable with minor participation and pack gaps."),
+    row("2026-07", "Bankstown", [21450, 8200, 38.2, 84, 612, 66100, 45100, 10, 28200, 14900, 11100, 26000], [21600, 8300, 38.5, 86, 625, 67000, 45000, 10, 28300, 15000, 11200, 26200], "July was stable with minor utilisation and pack gaps."),
     row("2026-07", "Wetherill Park", [22680, 9530, 42, 96, 664, 73100, 48400, 12, 35100, 16000, 12800, 28800], [22400, 9300, 41.5, 94, 660, 72000, 48000, 12, 34800, 16100, 12700, 28800], "Healthy base across all major Fitness KPIs."),
-    row("2026-07", "580G", [18840, 6820, 36.2, 76, 521, 58600, 37100, 8, 23600, 12400, 9900, 22300], [18800, 6900, 36.8, 77, 530, 59000, 38000, 8, 24000, 12600, 9900, 22500], "Close to plan; focus stayed on participation yield."),
+    row("2026-07", "580G", [18840, 6820, 36.2, 76, 521, 58600, 37100, 8, 23600, 12400, 9900, 22300], [18800, 6900, 36.8, 77, 530, 59000, 38000, 8, 24000, 12600, 9900, 22500], "Close to plan; focus stayed on utilisation yield."),
     row("2026-07", "Woolooware", [19520, 7420, 38, 79, 538, 59200, 39600, 9, 25400, 13900, 10500, 24400], [19800, 7600, 38.4, 80, 550, 60000, 40000, 9, 25500, 14000, 10600, 24600], "Steady, with light gaps in class attendance and paid sessions.")
   ]
 };
@@ -143,6 +143,7 @@ function row(period, club, actualValues, targetValues, focus) {
   const actuals = Object.fromEntries(keys.map((key, index) => [key, actualValues[index]]));
   const targets = Object.fromEntries(keys.map((key, index) => [key, targetValues[index]]));
   actuals.totalClassCapacity = 0;
+  actuals.classParticipationRatio = 0;
   targets.totalClassCapacity = 0;
   actuals.classCostBudget = targetValues[12];
   targets.classCostBudget = targetValues[12];
@@ -171,12 +172,17 @@ function aggregateRows(rows) {
     return sum;
   }, { actuals: {}, targets: {} });
 
-  totals.actuals.classParticipationRatio = totals.actuals.totalCheckins
-    ? round1((totals.actuals.totalClassAttendance / totals.actuals.totalCheckins) * 100)
-    : 0;
-  totals.targets.classParticipationRatio = totals.targets.totalCheckins
-    ? round1((totals.targets.totalClassAttendance / totals.targets.totalCheckins) * 100)
-    : 0;
+  totals.actuals.classParticipationRatio = utilisationRatio(
+    totals.actuals.totalClassAttendance,
+    totals.actuals.totalClassCapacity
+  );
+  const targetWeight = rows.reduce((sum, item) => sum + (item.targets.totalClassCapacity || item.actuals.totalClassCapacity || 0), 0);
+  totals.targets.classParticipationRatio = targetWeight
+    ? round1(rows.reduce((sum, item) => {
+      const weight = item.targets.totalClassCapacity || item.actuals.totalClassCapacity || 0;
+      return sum + ((item.targets.classParticipationRatio || 0) * weight);
+    }, 0) / targetWeight)
+    : round1(rows.reduce((sum, item) => sum + (item.targets.classParticipationRatio || 0), 0) / Math.max(rows.length, 1));
   totals.actuals.classCostBudget = totals.actuals.paidClassCosts || 0;
   return totals;
 }
@@ -226,6 +232,10 @@ function targetLabel(kpi, target) {
 
 function round1(value) {
   return Math.round((value + Number.EPSILON) * 10) / 10;
+}
+
+function utilisationRatio(attendance, capacity) {
+  return capacity ? round1(((attendance || 0) / capacity) * 100) : 0;
 }
 
 function escapeHtml(value) {
@@ -473,7 +483,7 @@ function renderParticipation() {
           <span><span class="mini-label">Total Check-ins</span><strong class="mini-value">${number.format(item.actuals.totalCheckins || 0)}</strong></span>
           <span><span class="mini-label">Class Attendance</span><strong class="mini-value">${number.format(item.actuals.totalClassAttendance || 0)}</strong></span>
           <span><span class="mini-label">Class Capacity</span><strong class="mini-value">${number.format(item.actuals.totalClassCapacity || 0)}</strong></span>
-          <span><span class="mini-label">Participation Ratio</span><strong class="mini-value">${formatValue(item.actuals.classParticipationRatio, "percent")}</strong></span>
+          <span><span class="mini-label">Utilisation Ratio</span><strong class="mini-value">${formatValue(item.actuals.classParticipationRatio, "percent")}</strong></span>
           <span><span class="mini-label">Ratio Target</span><strong class="mini-value">${formatValue(item.targets.classParticipationRatio, "percent")}</strong></span>
         </div>
       </article>
@@ -513,7 +523,7 @@ function renderTrend() {
     </circle>
   `).join("");
   container.innerHTML = `
-    <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Class participation ratio trend line graph">
+    <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Class utilisation ratio trend line graph">
       ${grid}
       <line class="trend-axis" x1="${pad.left}" y1="${height - pad.bottom}" x2="${width - pad.right}" y2="${height - pad.bottom}"></line>
       <line class="trend-axis" x1="${pad.left}" y1="${pad.top}" x2="${pad.left}" y2="${height - pad.bottom}"></line>
@@ -871,6 +881,10 @@ function applySavedTargets(targetsByClub = {}) {
     if (targets.totalClassCapacity !== undefined) {
       item.actuals.totalClassCapacity = Number(targets.totalClassCapacity) || 0;
     }
+    item.actuals.classParticipationRatio = utilisationRatio(
+      item.actuals.totalClassAttendance,
+      item.actuals.totalClassCapacity
+    );
     return { ...item, targets };
   });
 }
