@@ -1,4 +1,4 @@
-const MEMBER_APP_VERSION = "member-dashboard-membership-nmm-v30-2026-09-29";
+const MEMBER_APP_VERSION = "member-dashboard-validated-nmm-v31-2026-09-30";
 const REFRESH_CLUBS = ["Bankstown", "Wetherill Park", "580G", "Woolooware"];
 const MEMBER_API_ORIGIN = ["localhost", "127.0.0.1"].includes(window.location.hostname)
   ? "https://ufcgym-dashboard-june2026.vercel.app"
@@ -502,6 +502,11 @@ async function refreshMemberMetrics() {
         }
         for (const item of body.failures || []) {
           failures.push(`${item.club || club}: ${errorText(item.error)}`);
+        }
+        if (index === REFRESH_CLUBS.length - 1 && body.pending) {
+          const missing = (body.missingClubs || []).join(", ");
+          const quality = (body.qualityIssues || []).map((item) => `${item.club}: ${item.warning}`).join(" | ");
+          failures.push(`Refresh not published${missing ? `; missing ${missing}` : ""}${quality ? `; ${quality}` : ""}.`);
         }
       } catch (error) {
         failures.push(`${club}: ${errorText(error)}`);

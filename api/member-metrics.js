@@ -7,7 +7,7 @@ const {
 } = require("./core-report.js");
 
 const DEFAULT_HAPANA_BASE_URL = "https://api.hapana.com/v2";
-const MEMBER_METRICS_VERSION = "member-metrics-atomic-refresh-v35-2026-09-30";
+const MEMBER_METRICS_VERSION = "member-metrics-validated-refresh-v36-2026-09-30";
 const STORAGE_PATH = "member-metrics.json";
 const PENDING_STORAGE_PREFIX = "member-metrics-pending";
 const REVENUE_STORAGE_PATH = "weekly-revenue.json";
@@ -169,7 +169,10 @@ module.exports = async function handler(request, response) {
     const missingClubs = LOCATIONS
       .map(({ club }) => club)
       .filter((club) => !clubs.some((row) => row.club === club));
-    const complete = missingClubs.length === 0;
+    const qualityIssues = clubs
+      .filter((row) => row.warning || row.fallback)
+      .map((row) => ({ club: row.club, warning: row.warning || "Only fallback active-member data was returned" }));
+    const complete = missingClubs.length === 0 && qualityIssues.length === 0;
     const storagePath = complete ? STORAGE_PATH : pendingStoragePath(window);
     const blob = await put(storagePath, JSON.stringify(payload, null, 2), {
       access: "private",
@@ -182,6 +185,7 @@ module.exports = async function handler(request, response) {
       stored: complete,
       pending: !complete,
       missingClubs,
+      qualityIssues,
       blobUrl: blob?.url || null
     });
   } catch (error) {
