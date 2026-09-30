@@ -7,8 +7,9 @@ const {
 } = require("./core-report.js");
 
 const DEFAULT_HAPANA_BASE_URL = "https://api.hapana.com/v2";
-const MEMBER_METRICS_VERSION = "member-metrics-membership-nmm-v34-2026-09-29";
+const MEMBER_METRICS_VERSION = "member-metrics-atomic-refresh-v35-2026-09-30";
 const STORAGE_PATH = "member-metrics.json";
+const PENDING_STORAGE_PREFIX = "member-metrics-pending";
 const REVENUE_STORAGE_PATH = "weekly-revenue.json";
 const TIME_ZONE = "Australia/Sydney";
 
@@ -71,9 +72,11 @@ module.exports = async function handler(request, response) {
     const failures = [];
     const samples = [];
     const existing = await loadExistingMemberMetrics();
-    const existingClubs = existing?.dateFrom === window.dateFrom && existing?.dateTo === window.dateTo
-      ? existing.clubs || []
-      : [];
+    const pending = await loadPendingMemberMetrics(window);
+    const candidates = [existing, pending]
+      .filter((payload) => payload?.dateFrom === window.dateFrom && payload?.dateTo === window.dateTo)
+      .sort((a, b) => (b.clubs?.length || 0) - (a.clubs?.length || 0));
+    const existingClubs = candidates[0]?.clubs || [];
 
     await Promise.all(targetLocations.map(async (locationConfig) => {
       const { club, location } = locationConfig;
@@ -163,7 +166,12 @@ module.exports = async function handler(request, response) {
       failures
     };
 
-    const blob = await put(STORAGE_PATH, JSON.stringify(payload, null, 2), {
+    const missingClubs = LOCATIONS
+      .map(({ club }) => club)
+      .filter((club) => !clubs.some((row) => row.club === club));
+    const complete = missingClubs.length === 0;
+    const storagePath = complete ? STORAGE_PATH : pendingStoragePath(window);
+    const blob = await put(storagePath, JSON.stringify(payload, null, 2), {
       access: "private",
       allowOverwrite: true,
       contentType: "application/json"
@@ -171,7 +179,9 @@ module.exports = async function handler(request, response) {
 
     response.status(failures.length ? 207 : 200).json({
       ...payload,
-      stored: true,
+      stored: complete,
+      pending: !complete,
+      missingClubs,
       blobUrl: blob?.url || null
     });
   } catch (error) {
@@ -195,6 +205,18 @@ async function loadExistingMemberMetrics() {
   const result = await get(STORAGE_PATH, { access: "private", useCache: false }).catch(() => null);
   if (!result || result.statusCode !== 200 || !result.stream) return null;
   return new Response(result.stream).json();
+}
+
+async function loadPendingMemberMetrics(window) {
+  const result = await get(pendingStoragePath(window), { access: "private", useCache: false }).catch(() => null);
+  if (!result || result.statusCode !== 200 || !result.stream) return null;
+  return new Response(result.stream).json();
+}
+
+function pendingStoragePath(window) {
+  const from = String(window.dateFrom || "").replace(/[^0-9]/g, "-");
+  const to = String(window.dateTo || "").replace(/[^0-9]/g, "-");
+  return `${PENDING_STORAGE_PREFIX}-${from}-${to}.json`;
 }
 
 async function loadReportingWeek(dateTo) {
