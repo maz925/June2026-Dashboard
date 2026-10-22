@@ -696,7 +696,65 @@ function renderHistory() {
   }).join("");
 }
 
+function financialWeekTotals(weekEnding, clubs) {
+  const rows = data.rolling.filter((row) => row.weekEnding === weekEnding && isCompleteRevenueWeek(row));
+  const selected = clubs.map((club) => rows.find((row) => row.club === club &&
+    Number.isFinite(row.ddActual) && Number.isFinite(row.posActual)));
+  if (!selected.length || selected.some((row) => !row)) return null;
+  const dd = selected.reduce((sum, row) => sum + row.ddActual, 0);
+  const pos = selected.reduce((sum, row) => sum + row.posActual, 0);
+  return { dd, pos, revenue: dd + pos, posPercent: dd ? pos / dd * 100 : null };
+}
+
+function financialChange(current, previous) {
+  if (!Number.isFinite(current) || !Number.isFinite(previous)) return null;
+  const difference = current - previous;
+  return { difference, percent: previous === 0 ? null : difference / Math.abs(previous) * 100 };
+}
+
+function renderFinancialComparison() {
+  const container = document.querySelector("#financialComparison");
+  if (!container) return;
+  const currentWeek = availableWeekEndings()[0];
+  if (!currentWeek) {
+    setText("#financialComparisonNote", "No completed revenue weeks are available yet.");
+    container.innerHTML = "";
+    return;
+  }
+  const previousWeek = formatInputDate(addDays(parseDate(currentWeek), -7));
+  const clubs = isAllClubsSelected()
+    ? [...new Set([...data.targets.map((row) => row.club), ...data.rolling.map((row) => row.club)])].filter(Boolean)
+    : selectedClubNames();
+  const current = financialWeekTotals(currentWeek, clubs);
+  const previous = financialWeekTotals(previousWeek, clubs);
+  const range = (week) => {
+    const row = data.rolling.find((item) => item.weekEnding === week && isCompleteRevenueWeek(item));
+    return row ? rowPeriod(row).period : reportingCycle(week).period;
+  };
+  setText("#financialComparisonNote", `${clubs.join(", ")} · Current means the latest available completed week. ${!current || !previous ? "A week is unavailable if any selected club is missing DD or POS data. " : ""}POS % is POS divided by DD; its change is in percentage points.`);
+  const signed = (value, format) => `${value > 0 ? "+" : ""}${format(value)}`;
+  const metrics = [
+    { key: "dd", label: "DD Revenue" },
+    { key: "pos", label: "POS Revenue" },
+    { key: "revenue", label: "Total Revenue" },
+    { key: "posPercent", label: "POS % of DD", ratio: true }
+  ];
+  container.innerHTML = `<table>
+    <thead><tr><th scope="col">Measure</th><th scope="col">Last week<br>${escapeHtml(range(previousWeek))}</th><th scope="col">Current week<br>${escapeHtml(range(currentWeek))}</th><th scope="col">Change</th><th scope="col">Change %</th><th scope="col">Direction</th></tr></thead>
+    <tbody>${metrics.map((metric) => {
+      const before = previous?.[metric.key];
+      const after = current?.[metric.key];
+      const change = financialChange(after, before);
+      const format = metric.ratio ? formatPercent : formatMoney;
+      const display = (value) => Number.isFinite(value) ? format(value) : "Unavailable";
+      const direction = !change ? "Unavailable" : change.difference > 0 ? "Up" : change.difference < 0 ? "Down" : "No change";
+      const changeText = !change ? "—" : metric.ratio ? `${signed(change.difference, (value) => number.format(value))} pp` : signed(change.difference, formatMoney);
+      return `<tr><th scope="row">${metric.label}</th><td>${display(before)}</td><td>${display(after)}</td><td class="${change ? gapClass(change.difference) : "muted-value"}">${changeText}</td><td>${metric.ratio ? "—" : !change ? "—" : change.percent === null ? "N/A (last week was zero)" : signed(change.percent, formatPercent)}</td><td>${direction}</td></tr>`;
+    }).join("")}</tbody></table>`;
+}
+
 function render() {
+  renderFinancialComparison();
   renderMetrics();
   renderCycle();
   renderSummary();
