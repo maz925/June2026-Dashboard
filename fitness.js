@@ -516,6 +516,27 @@ function renderParticipation() {
   }).join("");
 }
 
+function trendDateRange(period) {
+  const formatDate = (value) => {
+    const text = String(value || "");
+    const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
+    const hapana = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(text);
+    if (!iso && !hapana) return "";
+    const [, year, month, day] = iso || [null, hapana[3], hapana[2], hapana[1]];
+    const date = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+    if (date.getUTCFullYear() !== Number(year) || date.getUTCMonth() !== Number(month) - 1 || date.getUTCDate() !== Number(day)) return "";
+    return new Intl.DateTimeFormat("en-AU", { day: "numeric", month: "short", year: "2-digit", timeZone: "UTC" }).format(date).replace(/\bSept\b/g, "Sep");
+  };
+  const from = formatDate(period.dateFrom);
+  const to = formatDate(period.dateTo);
+  if (from && to) return `${from} to ${to}`;
+  let range = String(period.range || period.label || "").replace(/^(?:Custom|Week ending)\s+/i, "");
+  const year = /\b(\d{4})\b/.exec(range)?.[1];
+  if (year) range = range.replace(/^(\d{1,2}\s+[A-Za-z]+)\s+to\s+/, `$1 ${year} to `);
+  return range.replace(/\b(January|February|March|April|May|June|July|August|September|October|November|December)\b/g, (month) => month.slice(0, 3))
+    .replace(/\bSept\b/g, "Sep").replace(/\b\d{4}\b/g, (year) => year.slice(-2));
+}
+
 function renderTrend() {
   const container = document.querySelector("#fitnessTrend");
   const periods = [...fitnessData.periods].reverse();
@@ -538,8 +559,7 @@ function renderTrend() {
     });
     container.trendResizeObserver.observe(container);
   }
-  const dateLabels = periods.map((period) => period.label
-    .replace(/\b(January|February|March|April|May|June|July|August|September|October|November|December)\b/g, (month) => month.slice(0, 3)));
+  const dateLabels = periods.map(trendDateRange);
   const labelExtent = Math.ceil(Math.max(80, ...dateLabels.map((label) => label.length * 7)) / Math.sqrt(2));
   const pad = { top: 22, right: labelExtent + 24, bottom: labelExtent + 40, left: 66 };
   const height = 266 + pad.bottom;
