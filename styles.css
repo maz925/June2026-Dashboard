@@ -922,6 +922,30 @@ input[type="password"] {
   font-size: 12px;
 }
 
+#fitnessTrend .trend-label {
+  fill: #344054;
+  font-weight: 500;
+}
+
+#fitnessTrend {
+  overflow-x: auto;
+}
+
+#fitnessTrend svg {
+  min-width: 640px;
+}
+
+.fitness-theme .trend-head p,
+.fitness-theme #participationView .section-heading p,
+.fitness-trend-notice {
+  color: #344054;
+}
+
+.fitness-trend-notice {
+  margin: 0 0 12px;
+  font-size: 14px;
+}
+
 .trend-line {
   fill: none;
   stroke-width: 3;

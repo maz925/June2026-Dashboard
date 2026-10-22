@@ -520,14 +520,29 @@ function renderTrend() {
   const container = document.querySelector("#fitnessTrend");
   const periods = [...fitnessData.periods].reverse();
   const values = periods.map((period) => {
-    const totals = aggregateRows(fitnessData.rows.filter((item) =>
+    const rows = fitnessData.rows.filter((item) =>
       item.period === period.id && (isAllClubsSelected() || state.clubs.includes(item.club))
-    ));
-    return totals.actuals.classParticipationRatio || 0;
+    );
+    if (!rows.length || rows.some((item) => !(Number(item.actuals.totalClassCapacity) > 0))) return null;
+    const totals = aggregateRows(rows);
+    return totals.actuals.classParticipationRatio;
   });
-  const width = 980;
-  const height = 320;
-  const pad = { top: 22, right: 28, bottom: 54, left: 66 };
+  const width = Math.max(640, container.clientWidth || 980);
+  if (!container.trendResizeObserver && typeof ResizeObserver !== "undefined") {
+    let lastWidth = container.clientWidth;
+    container.trendResizeObserver = new ResizeObserver(() => {
+      if (container.clientWidth > 0 && container.clientWidth !== lastWidth) {
+        lastWidth = container.clientWidth;
+        renderTrend();
+      }
+    });
+    container.trendResizeObserver.observe(container);
+  }
+  const dateLabels = periods.map((period) => period.label
+    .replace(/\b(January|February|March|April|May|June|July|August|September|October|November|December)\b/g, (month) => month.slice(0, 3)));
+  const labelExtent = Math.ceil(Math.max(80, ...dateLabels.map((label) => label.length * 7)) / Math.sqrt(2));
+  const pad = { top: 22, right: labelExtent + 24, bottom: labelExtent + 40, left: 66 };
+  const height = 266 + pad.bottom;
   const plotWidth = width - pad.left - pad.right;
   const plotHeight = height - pad.top - pad.bottom;
   const yMax = Math.max(50, Math.ceil(Math.max(...values, 1) / 10) * 10);
@@ -538,16 +553,23 @@ function renderTrend() {
     <line class="trend-grid" x1="${pad.left}" y1="${y(tick)}" x2="${width - pad.right}" y2="${y(tick)}"></line>
     <text class="trend-label" x="${pad.left - 12}" y="${y(tick) + 4}" text-anchor="end">${tick}%</text>
   `).join("");
-  const labels = periods.map((period, index) => `
-    <text class="trend-label" x="${x(index)}" y="${height - 20}" text-anchor="middle">${escapeHtml(period.label.replace(" 2026", ""))}</text>
-  `).join("");
-  const path = values.map((value, index) => `${index === 0 ? "M" : "L"} ${x(index)},${y(value)}`).join(" ");
-  const dots = values.map((value, index) => `
+  const labelWidth = 40;
+  const maxLabels = Math.max(2, Math.floor(plotWidth / labelWidth));
+  const labelStep = Math.max(1, Math.ceil((periods.length - 1) / (maxLabels - 1)));
+  const labels = periods.map((period, index) => {
+    const lastIndex = periods.length - 1;
+    if (index !== lastIndex && (index % labelStep !== 0 || (index > 0 && lastIndex - index < labelStep))) return "";
+    const labelY = height - pad.bottom + 24;
+    return `<text class="trend-label" x="${x(index)}" y="${labelY}" text-anchor="start" transform="rotate(45 ${x(index)} ${labelY})">${escapeHtml(dateLabels[index])}</text>`;
+  }).join("");
+  const path = values.map((value, index) => value === null ? "" : `${index === 0 || values[index - 1] === null ? "M" : "L"} ${x(index)},${y(value)}`).join(" ");
+  const dots = values.map((value, index) => value === null ? "" : `
     <circle class="trend-dot" cx="${x(index)}" cy="${y(value)}" r="4.2" fill="#c8112e">
       <title>${escapeHtml(periods[index].label)}: ${formatValue(value, "percent")}</title>
     </circle>
   `).join("");
   container.innerHTML = `
+    ${values.includes(null) || !values.length ? `<p class="fitness-trend-notice" role="status">${values.some((value) => value !== null) ? "Gaps indicate unavailable utilisation data." : "Utilisation data is unavailable for this selection."} Enter class capacity for each selected club and period in Targets to calculate utilisation.</p>` : ""}
     <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Class utilisation ratio trend line graph">
       ${grid}
       <line class="trend-axis" x1="${pad.left}" y1="${height - pad.bottom}" x2="${width - pad.right}" y2="${height - pad.bottom}"></line>
@@ -1079,6 +1101,7 @@ async function loadFitnessData() {
 }
 
 async function refreshFitnessMetrics() {
+  if (showLocalFitnessNotice()) return;
   const button = fitnessRefreshForm.querySelector("button");
   const originalText = button.textContent;
   button.disabled = true;
@@ -1132,6 +1155,7 @@ async function handlePeriodChange() {
 }
 
 async function loadFitnessRange(mode, dateFrom, dateTo) {
+  if (showLocalFitnessNotice()) return;
   const originalValue = periodFilter.value;
   periodFilter.disabled = true;
   fitnessRefreshStatus.textContent = `Loading ${periodLabelForMode(mode)} from Hapana...`;
@@ -1220,6 +1244,18 @@ function addDays(date, days) {
   return next;
 }
 
+function showLocalFitnessNotice() {
+  if (window.location.protocol !== "file:") return false;
+  fitnessRefreshStatus.replaceChildren(document.createTextNode(
+    "Live refresh is unavailable when this dashboard is opened as a local file. Open the "
+  ));
+  const link = document.createElement("a");
+  link.href = "https://ufcgym-dashboard-june2026.vercel.app/fitness.html";
+  link.textContent = "hosted Fitness dashboard";
+  fitnessRefreshStatus.append(link, document.createTextNode(" and sign in to update Hapana data."));
+  return true;
+}
+
 function errorText(error) {
   if (!error) return "Unknown error";
   if (typeof error === "string") return error;
@@ -1237,6 +1273,7 @@ async function init() {
   initControls();
   await syncFitnessDatesWithDdWeek();
   render();
+  showLocalFitnessNotice();
   window.dashboardAuth?.ready?.then(logFitnessDashboardView);
 }
 
