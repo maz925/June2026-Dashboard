@@ -48,7 +48,7 @@ const KPI_GROUPS = [
     kpis: [
       { key: "conditioningClassCosts", label: "Total Conditioning Classes $", type: "money", target: "maximum" },
       { key: "skillsClassCosts", label: "Total Skills Classes $", type: "money", target: "maximum" },
-      { key: "paidClassCosts", label: "Total Paid Class Costs", type: "money", target: "maximum" },
+      { key: "paidClassCosts", label: "Invoices Paid to Coaches", type: "money", target: "maximum" },
       { key: "classCostBudget", label: "Budget", type: "money", target: "reference" }
     ]
   }

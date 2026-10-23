@@ -573,6 +573,10 @@ input[type="password"] {
   box-shadow: 0 10px 24px rgba(31, 38, 46, 0.06);
 }
 
+.target-editor + .target-editor {
+  margin-top: 16px;
+}
+
 .target-club-picker {
   max-width: 320px;
 }

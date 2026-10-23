@@ -1,4 +1,4 @@
-const FITNESS_APP_VERSION = "fitness-kpi-dashboard-v6-2026-09-29";
+const FITNESS_APP_VERSION = "fitness-kpi-dashboard-v7-2026-10-23";
 
 const money = new Intl.NumberFormat("en-AU", {
   style: "currency",
@@ -47,7 +47,7 @@ let fitnessData = {
       kpis: [
         { key: "conditioningClassCosts", label: "Total Conditioning Classes $", type: "money", target: "maximum" },
         { key: "skillsClassCosts", label: "Total Skills Classes $", type: "money", target: "maximum" },
-        { key: "paidClassCosts", label: "Total Paid Class Costs", type: "money", target: "maximum" },
+        { key: "paidClassCosts", label: "Invoices Paid to Coaches", type: "money", target: "maximum" },
         { key: "classCostBudget", label: "Budget", type: "money", target: "reference" }
       ]
     }
@@ -85,12 +85,18 @@ const fitnessTargetsForm = document.querySelector("#fitnessTargetsForm");
 const fitnessTargetsGrid = document.querySelector("#fitnessTargetsGrid");
 const fitnessTargetsStatus = document.querySelector("#fitnessTargetsStatus");
 const targetClub = document.querySelector("#targetClub");
+const coachInvoicesForm = document.querySelector("#coachInvoicesForm");
+const coachInvoiceClub = document.querySelector("#coachInvoiceClub");
+const coachInvoicesPaid = document.querySelector("#coachInvoicesPaid");
+const coachInvoicePeriod = document.querySelector("#coachInvoicePeriod");
+const coachInvoicesStatus = document.querySelector("#coachInvoicesStatus");
 const slaTrackingForm = document.querySelector("#slaTrackingForm");
 const slaTrackingGrid = document.querySelector("#slaTrackingGrid");
 const slaTrackingStatus = document.querySelector("#slaTrackingStatus");
 const slaClub = document.querySelector("#slaClub");
 let allKpis = fitnessData.kpiGroups.flatMap((group) => group.kpis);
 let savedTargetsByClub = {};
+let manualActualRecords = {};
 let slaRecords = {};
 
 const slaGroups = [
@@ -286,6 +292,8 @@ function initControls() {
   periodFilter.value = `stored:${state.period}`;
   targetClub.innerHTML = fitnessData.clubs.map((club) => `<option value="${escapeHtml(club)}">${escapeHtml(club)}</option>`).join("");
   if (!targetClub.value) targetClub.value = fitnessData.clubs[0] || "";
+  coachInvoiceClub.innerHTML = fitnessData.clubs.map((club) => `<option value="${escapeHtml(club)}">${escapeHtml(club)}</option>`).join("");
+  if (!coachInvoiceClub.value) coachInvoiceClub.value = fitnessData.clubs[0] || "";
   slaClub.innerHTML = fitnessData.clubs.map((club) => `<option value="${escapeHtml(club)}">${escapeHtml(club)}</option>`).join("");
   if (!slaClub.value) slaClub.value = fitnessData.clubs[0] || "";
 
@@ -910,6 +918,79 @@ function renderTargetsEditor() {
   `).join("");
 }
 
+function manualActualKey(period, club) {
+  return `${period}::${club}`;
+}
+
+function renderCoachInvoicesEditor() {
+  if (!coachInvoiceClub || !coachInvoicesPaid) return;
+  const period = fitnessData.periods.find((item) => item.id === state.period);
+  const record = manualActualRecords[manualActualKey(state.period, coachInvoiceClub.value)];
+  coachInvoicesPaid.value = Number(record?.coachInvoicesPaid || 0);
+  coachInvoicePeriod.textContent = period
+    ? `${period.label}${period.range ? ` - ${period.range}` : ""}`
+    : state.period;
+}
+
+function applyManualActuals(records = {}) {
+  manualActualRecords = records || {};
+  fitnessData.rows = fitnessData.rows.map((item) => {
+    const record = manualActualRecords[manualActualKey(item.period, item.club)];
+    if (!record) return item;
+    return {
+      ...item,
+      actuals: {
+        ...item.actuals,
+        paidClassCosts: Number(record.coachInvoicesPaid) || 0
+      }
+    };
+  });
+}
+
+async function loadManualActuals() {
+  try {
+    const response = await fetch("/api/fitness-manual-actuals", { headers: { "Accept": "application/json" } });
+    if (!response.ok) throw new Error(`Coach invoices returned ${response.status}`);
+    const payload = await response.json();
+    applyManualActuals(payload.records || {});
+  } catch (error) {
+    console.warn("Coach invoices could not load.", error);
+  }
+}
+
+async function saveCoachInvoices() {
+  const button = coachInvoicesForm.querySelector("button");
+  const originalText = button.textContent;
+  const period = fitnessData.periods.find((item) => item.id === state.period);
+  button.disabled = true;
+  button.textContent = "Saving...";
+  coachInvoicesStatus.textContent = "Saving coach invoices...";
+
+  try {
+    const response = await fetch("/api/fitness-manual-actuals", {
+      method: "POST",
+      headers: { "Accept": "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify({
+        period: state.period,
+        periodLabel: period?.label || state.period,
+        periodRange: period?.range || "",
+        club: coachInvoiceClub.value,
+        coachInvoicesPaid: Number(coachInvoicesPaid.value || 0)
+      })
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(errorText(payload.error || `HTTP ${response.status}`));
+    applyManualActuals(payload.records || {});
+    render();
+    coachInvoicesStatus.textContent = `Coach invoices saved for ${coachInvoiceClub.value}.`;
+  } catch (error) {
+    coachInvoicesStatus.textContent = errorText(error);
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
+  }
+}
+
 function renderTargetInput(kpi, value) {
   const step = kpi.type === "percent" ? "0.1" : "1";
   const suffix = kpi.type === "percent" ? "%" : "";
@@ -1028,6 +1109,7 @@ function render() {
   renderCoachCompliance();
   renderSlaCompliance();
   renderSlaEditor();
+  renderCoachInvoicesEditor();
   renderTargetsEditor();
   renderActions();
 }
@@ -1057,6 +1139,16 @@ fitnessRefreshForm.addEventListener("submit", (event) => {
 fitnessTargetsForm.addEventListener("submit", (event) => {
   event.preventDefault();
   saveFitnessTargets();
+});
+
+coachInvoicesForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  saveCoachInvoices();
+});
+
+coachInvoiceClub.addEventListener("change", () => {
+  renderCoachInvoicesEditor();
+  coachInvoicesStatus.textContent = "";
 });
 
 targetClub.addEventListener("change", () => {
@@ -1108,6 +1200,7 @@ async function loadFitnessData() {
     allKpis = fitnessData.kpiGroups.flatMap((group) => group.kpis);
     state.period = fitnessData.periods[0]?.id || state.period;
     await loadFitnessTargets();
+    await loadManualActuals();
     await loadFitnessSla();
     if (payload.rows.length) {
       state.connection = "live";

@@ -176,7 +176,7 @@
               <th>PT Rent Collected</th>
               <th>Conditioning Classes $</th>
               <th>Skills Classes $</th>
-              <th>Paid Class Costs</th>
+              <th>Coach Invoices Paid</th>
               <th>Budget</th>
               <th>Status</th>
             </tr>
@@ -230,6 +230,28 @@
         <h2>Fitness KPI Targets</h2>
         <p>Update the weekly target numbers used for each club's Fitness scorecard.</p>
       </div>
+      <form id="coachInvoicesForm" class="target-editor">
+        <div class="section-heading compact-heading">
+          <h3>Invoices Paid to Coaches</h3>
+          <p>Enter the total coach invoices paid for the selected reporting period.</p>
+        </div>
+        <label class="filter target-club-picker">
+          <span>Club</span>
+          <select id="coachInvoiceClub"></select>
+        </label>
+        <label class="target-input-card">
+          <span>Invoices Paid to Coaches</span>
+          <div class="target-input-shell">
+            <b>$</b>
+            <input id="coachInvoicesPaid" type="number" min="0" step="0.01" inputmode="decimal" required>
+          </div>
+          <small id="coachInvoicePeriod">Selected period</small>
+        </label>
+        <div class="target-editor-actions">
+          <button class="download-button" type="submit">Save Coach Invoices</button>
+          <p class="form-status" id="coachInvoicesStatus" role="status"></p>
+        </div>
+      </form>
       <form id="fitnessTargetsForm" class="target-editor">
         <label class="filter target-club-picker">
           <span>Club</span>
@@ -254,6 +276,6 @@
 
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="auth.js"></script>
-  <script src="fitness.js?v=2026-10-23-date-ranges"></script>
+  <script src="fitness.js?v=2026-10-23-coach-invoices"></script>
 </body>
 </html>
