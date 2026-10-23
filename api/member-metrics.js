@@ -7,7 +7,7 @@ const {
 } = require("./core-report.js");
 
 const DEFAULT_HAPANA_BASE_URL = "https://api.hapana.com/v2";
-const MEMBER_METRICS_VERSION = "member-metrics-validated-refresh-v36-2026-09-30";
+const MEMBER_METRICS_VERSION = "member-metrics-mtd-v37-2026-10-23";
 const STORAGE_PATH = "member-metrics.json";
 const PENDING_STORAGE_PREFIX = "member-metrics-pending";
 const REVENUE_STORAGE_PATH = "weekly-revenue.json";
@@ -590,13 +590,14 @@ function normaliseClub(value) {
 }
 
 function monthWindow(params) {
-  const explicitFrom = params.get("date_from");
   const explicitTo = params.get("date_to");
-  if (explicitFrom && explicitTo) {
+  if (explicitTo) {
+    const end = parseHapanaDate(explicitTo);
+    const start = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), 1));
     return {
-      dateFrom: explicitFrom,
+      dateFrom: hapanaDate(start),
       dateTo: explicitTo,
-      monthKey: parseHapanaDate(explicitTo).toISOString().slice(0, 7)
+      monthKey: end.toISOString().slice(0, 7)
     };
   }
 

@@ -1,4 +1,4 @@
-const MEMBER_APP_VERSION = "member-dashboard-validated-nmm-v31-2026-09-30";
+const MEMBER_APP_VERSION = "member-dashboard-mtd-v32-2026-10-23";
 const REFRESH_CLUBS = ["Bankstown", "Wetherill Park", "580G", "Woolooware"];
 const MEMBER_API_ORIGIN = ["localhost", "127.0.0.1"].includes(window.location.hostname)
   ? "https://ufcgym-dashboard-june2026.vercel.app"
@@ -226,9 +226,16 @@ function initControls() {
   clubFilter.innerHTML = clubs.map((club) => `<option value="${escapeHtml(club)}"${club === "All Clubs" ? " selected" : ""}>${escapeHtml(club)}</option>`).join("");
 
   const today = new Date();
-  const start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-  memberDateFrom.value = formatInputDate(start);
   memberDateTo.value = formatInputDate(today);
+  memberDateTo.max = formatInputDate(today);
+  syncMemberMonthStart();
+  memberDateFrom.readOnly = true;
+}
+
+function syncMemberMonthStart() {
+  const end = parseDate(memberDateTo.value || formatInputDate(new Date()));
+  const start = new Date(end.getFullYear(), end.getMonth(), 1);
+  memberDateFrom.value = formatInputDate(start);
 }
 
 function renderSource() {
@@ -477,12 +484,15 @@ refreshForm.addEventListener("submit", (event) => {
   refreshMemberMetrics();
 });
 
+memberDateTo.addEventListener("change", syncMemberMonthStart);
+
 async function refreshMemberMetrics() {
   const button = refreshForm.querySelector("button");
   button.disabled = true;
   const originalText = button.textContent;
 
   try {
+    syncMemberMonthStart();
     const failures = [];
     for (const [index, club] of REFRESH_CLUBS.entries()) {
       memberRefreshStatus.textContent = `Updating ${club} (${index + 1} of ${REFRESH_CLUBS.length})...`;
