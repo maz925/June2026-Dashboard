@@ -631,7 +631,8 @@ function renderPtRevenue() {
 function renderRentCosts() {
   const body = document.querySelector("#rentCostsBody");
   body.innerHTML = currentRows().map((item) => {
-    const status = statusFor(item.actuals.paidClassCosts, item.targets.classCostBudget, "maximum");
+    const invoiceAmount = Number(item.actuals.paidClassCosts || 0);
+    const status = statusFor(invoiceAmount, item.targets.classCostBudget, "maximum");
     return `
       <tr>
         <td>${escapeHtml(item.club)}</td>
@@ -639,7 +640,21 @@ function renderRentCosts() {
         <td>${money.format(item.actuals.ptRentCollected || 0)}</td>
         <td>${money.format(item.actuals.conditioningClassCosts || 0)}</td>
         <td>${money.format(item.actuals.skillsClassCosts || 0)}</td>
-        <td>${money.format(item.actuals.paidClassCosts || 0)}</td>
+        <td>
+          <div class="invoice-entry">
+            <span aria-hidden="true">$</span>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value="${invoiceAmount}"
+              inputmode="decimal"
+              data-coach-invoice-input="${escapeHtml(item.club)}"
+              aria-label="Invoices paid to coaches for ${escapeHtml(item.club)}"
+            >
+            <button type="button" data-save-coach-invoice="${escapeHtml(item.club)}">Save</button>
+          </div>
+        </td>
         <td>${money.format(item.targets.classCostBudget || 0)}</td>
         <td><span class="status ${status}">${statusText(status)}</span></td>
       </tr>
@@ -936,12 +951,11 @@ function applyManualActuals(records = {}) {
   manualActualRecords = records || {};
   fitnessData.rows = fitnessData.rows.map((item) => {
     const record = manualActualRecords[manualActualKey(item.period, item.club)];
-    if (!record) return item;
     return {
       ...item,
       actuals: {
         ...item.actuals,
-        paidClassCosts: Number(record.coachInvoicesPaid) || 0
+        paidClassCosts: Number(record?.coachInvoicesPaid) || 0
       }
     };
   });
@@ -958,13 +972,16 @@ async function loadManualActuals() {
   }
 }
 
-async function saveCoachInvoices() {
-  const button = coachInvoicesForm.querySelector("button");
+async function saveCoachInvoices(options = {}) {
+  const club = options.club || coachInvoiceClub.value;
+  const value = options.value ?? Number(coachInvoicesPaid.value || 0);
+  const statusElement = options.statusElement || coachInvoicesStatus;
+  const button = options.button || coachInvoicesForm.querySelector("button");
   const originalText = button.textContent;
   const period = fitnessData.periods.find((item) => item.id === state.period);
   button.disabled = true;
   button.textContent = "Saving...";
-  coachInvoicesStatus.textContent = "Saving coach invoices...";
+  statusElement.textContent = "Saving coach invoices...";
 
   try {
     const response = await fetch("/api/fitness-manual-actuals", {
@@ -974,17 +991,19 @@ async function saveCoachInvoices() {
         period: state.period,
         periodLabel: period?.label || state.period,
         periodRange: period?.range || "",
-        club: coachInvoiceClub.value,
-        coachInvoicesPaid: Number(coachInvoicesPaid.value || 0)
+        club,
+        coachInvoicesPaid: Number(value || 0)
       })
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(errorText(payload.error || `HTTP ${response.status}`));
     applyManualActuals(payload.records || {});
     render();
-    coachInvoicesStatus.textContent = `Coach invoices saved for ${coachInvoiceClub.value}.`;
+    coachInvoicesStatus.textContent = `Coach invoices saved for ${club}.`;
+    const savedButton = document.querySelector(`[data-save-coach-invoice="${CSS.escape(club)}"]`);
+    if (options.club && savedButton) savedButton.textContent = "Saved";
   } catch (error) {
-    coachInvoicesStatus.textContent = errorText(error);
+    statusElement.textContent = errorText(error);
   } finally {
     button.disabled = false;
     button.textContent = originalText;
@@ -1149,6 +1168,14 @@ coachInvoicesForm.addEventListener("submit", (event) => {
 coachInvoiceClub.addEventListener("change", () => {
   renderCoachInvoicesEditor();
   coachInvoicesStatus.textContent = "";
+});
+
+document.querySelector("#rentCostsBody").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-save-coach-invoice]");
+  if (!button) return;
+  const club = button.dataset.saveCoachInvoice;
+  const input = document.querySelector(`[data-coach-invoice-input="${CSS.escape(club)}"]`);
+  saveCoachInvoices({ club, value: Number(input?.value || 0), button });
 });
 
 targetClub.addEventListener("change", () => {
