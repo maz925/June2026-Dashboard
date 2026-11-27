@@ -158,7 +158,9 @@ function row(period, club, actualValues, targetValues, focus) {
 
 function currentRows() {
   const rows = fitnessData.rows.filter((item) => item.period === state.period);
-  return isAllClubsSelected() ? rows : rows.filter((item) => state.clubs.includes(item.club));
+  const visible = isAllClubsSelected() ? rows : rows.filter((item) => state.clubs.includes(item.club));
+  const order = window.DashboardLogic.CLUB_ORDER;
+  return [...visible].sort((a, b) => order.indexOf(a.club) - order.indexOf(b.club));
 }
 
 function isAllClubsSelected() {
@@ -215,9 +217,11 @@ function statusText(status) {
 }
 
 function clubStatus(item) {
+  const rows = currentRows();
   const statuses = allKpis
-    .filter((kpi) => kpi.target !== "reference")
-    .map((kpi) => statusFor(item.actuals[kpi.key], item.targets[kpi.key], kpi.target));
+    .filter((kpi) => kpi.target !== "reference" && !metricMissing(item, kpi, rows))
+    .map((kpi) => statusFor(item.actuals[kpi.key], kpi.key === "paidClassCosts" ? item.targets.classCostBudget : item.targets[kpi.key], kpi.target));
+  if (!statuses.length) return "pending";
   if (statuses.includes("red")) return "red";
   if (statuses.includes("amber")) return "amber";
   return "green";
@@ -280,11 +284,27 @@ function escapeHtml(value) {
 }
 
 function setText(selector, value) {
-  document.querySelector(selector).textContent = value;
+  const node = document.querySelector(selector);
+  if (node) node.textContent = value;
+}
+
+function apiFetch(url, options) {
+  return (window.DashboardUI?.fetch || fetch)(url, options);
+}
+
+function metricMissing(item, kpi, rows = currentRows()) {
+  const value = item.actuals?.[kpi.key];
+  if (value === null || value === undefined || value === "") return true;
+  if (kpi.key === "classParticipationRatio" || kpi.key === "totalClassCapacity") {
+    return !Number(item.actuals.totalClassCapacity);
+  }
+  const unstoredWhenZero = ["ptMmaPacksSold", "paidPtSessions", "posRevenue", "sessionSplitIncome", "conditioningClassCosts", "skillsClassCosts", "paidClassCosts", "ptRentCollected", "activePts"];
+  if (!unstoredWhenZero.includes(kpi.key)) return false;
+  return rows.every((row) => !Number(row.actuals?.[kpi.key]));
 }
 
 function initControls() {
-  const clubs = ["All Clubs", ...fitnessData.clubs];
+  const clubs = window.DashboardLogic.orderClubs(["All Clubs", ...fitnessData.clubs]);
   clubFilter.multiple = true;
   clubFilter.size = Math.min(5, clubs.length);
   clubFilter.innerHTML = clubs.map((club) => `<option value="${escapeHtml(club)}"${club === "All Clubs" ? " selected" : ""}>${escapeHtml(club)}</option>`).join("");
@@ -304,7 +324,7 @@ function initControls() {
 
 async function syncFitnessDatesWithDdWeek() {
   try {
-    const response = await fetch("/api/hapana", { headers: { "Accept": "application/json" } });
+    const response = await apiFetch("/api/hapana", { headers: { "Accept": "application/json" } });
     if (!response.ok) throw new Error(`DD week returned ${response.status}`);
     const payload = await response.json();
     if (!payload.dateFrom || !payload.dateTo) return;
@@ -324,22 +344,9 @@ function syncClubSelection() {
 }
 
 function periodOptionsHtml() {
-  const stored = fitnessData.periods.map((period) =>
-    `<option value="stored:${escapeHtml(period.id)}">${escapeHtml(period.label)}${period.range ? ` (${escapeHtml(period.range)})` : ""}</option>`
+  return window.DashboardLogic.presentPeriods(fitnessData.periods).map((period) =>
+    `<option value="stored:${escapeHtml(period.id)}">${escapeHtml(period.label)}</option>`
   ).join("");
-  const quickOptions = quickPeriodOptions();
-  return `
-    <optgroup label="Stored periods">${stored}</optgroup>
-    <optgroup label="Month to date">
-      ${quickOptions.mtd.map(renderRangeOption).join("")}
-    </optgroup>
-    <optgroup label="Months">
-      ${quickOptions.months.map(renderRangeOption).join("")}
-    </optgroup>
-    <optgroup label="Week endings">
-      ${quickOptions.weeks.map(renderRangeOption).join("")}
-    </optgroup>
-  `;
 }
 
 function renderRangeOption(option) {
@@ -413,31 +420,33 @@ function renderSource() {
   };
   setText("#connectionStatus", statuses[state.connection] || "Fitness data");
   setText("#sourceName", fitnessData.source || "Fitness department KPI tracker");
-  setText("#updatedAt", fitnessData.updated
-    ? `Prepared ${fitnessData.updated} | ${FITNESS_APP_VERSION}`
-    : FITNESS_APP_VERSION);
+  window.DashboardUI?.paintFreshness(fitnessData.updated, FITNESS_APP_VERSION);
 }
 
 function renderMetrics() {
   const rows = currentRows();
   const totals = visibleTotals();
   const statuses = allKpis
-    .filter((kpi) => kpi.target !== "reference")
+    .filter((kpi) => kpi.target !== "reference" && !metricMissing({ actuals: totals.actuals }, kpi, rows))
     .map((kpi) => statusFor(totals.actuals[kpi.key], totals.targets[kpi.key], kpi.target));
   const greenCount = statuses.filter((status) => status === "green").length;
 
   setText("#totalCheckins", formatValue(totals.actuals.totalCheckins, "number"));
   setText("#classAttendance", formatValue(totals.actuals.totalClassAttendance, "number"));
-  setText("#classCapacity", formatValue(totals.actuals.totalClassCapacity, "number"));
-  setText("#participationRatio", formatValue(totals.actuals.classParticipationRatio, "percent"));
-  setText("#ptPacksSold", formatValue(totals.actuals.ptMmaPacksSold, "number"));
+  const capacityMissing = !Number(totals.actuals.totalClassCapacity);
+  const packsMissing = metricMissing({ actuals: totals.actuals }, { key: "ptMmaPacksSold" }, rows);
+  setText("#classCapacity", capacityMissing ? "No data" : formatValue(totals.actuals.totalClassCapacity, "number"));
+  setText("#participationRatio", capacityMissing ? "No data" : formatValue(totals.actuals.classParticipationRatio, "percent"));
+  setText("#ptPacksSold", packsMissing ? "No data" : formatValue(totals.actuals.ptMmaPacksSold, "number"));
   setText("#kpiHealth", rows.length ? `${greenCount}/${statuses.length}` : "0/0");
-  setText("#slaComplianceMetric", `${formatValue(slaScoreForRows(currentSlaRows()), "percent")}`);
+  const slaRows = currentSlaRows();
+  setText("#slaComplianceMetric", slaRows.some(slaEntered) ? `${formatValue(slaScoreForRows(slaRows), "percent")}` : "No data");
 }
 
 function renderPeriod() {
   const period = fitnessData.periods.find((item) => item.id === state.period);
-  const focus = currentRows().find((item) => clubStatus(item) === "red")?.focus || "All selected clubs are tracking within range.";
+  const focusRow = currentRows().find((item) => clubStatus(item) === "red");
+  const focus = focusRow ? clubFocus(focusRow) : "All selected clubs are tracking within range.";
   setText("#fitnessPeriod", period ? period.range : "");
   setText("#managementFocus", focus);
 }
@@ -467,16 +476,28 @@ function renderScorecard() {
           <span class="status ${clubStatus(item)}">${statusText(clubStatus(item))}</span>
         </div>
         ${groups}
-        <p class="note">${escapeHtml(item.focus)}</p>
+        <p class="note">${escapeHtml(clubFocus(item))}</p>
       </article>
     `;
   }).join("");
 }
 
 function renderKpi(item, kpi) {
+  if (metricMissing(item, kpi)) {
+    return `
+    <div class="fitness-kpi">
+      <div>
+        <span class="mini-label">${escapeHtml(kpi.label)}</span>
+        <strong class="mini-value">No data</strong>
+      </div>
+      <span class="status pending">NO DATA</span>
+      <div class="progress" aria-label="${escapeHtml(kpi.label)} progress"><span class="pending" style="width:0%"></span></div>
+      <span class="target-note">Not entered for this period</span>
+    </div>`;
+  }
   const actual = item.actuals[kpi.key] || 0;
   const target = kpi.key === "paidClassCosts" ? item.targets.classCostBudget : item.targets[kpi.key] || 0;
-  const status = statusFor(actual, target, kpi.target);
+  const status = kpi.target === "maximum" && !actual ? "pending" : statusFor(actual, target, kpi.target);
   const progress = progressFor(actual, target, kpi.target);
   return `
     <div class="fitness-kpi">
@@ -567,7 +588,10 @@ function renderTrend() {
     });
     container.trendResizeObserver.observe(container);
   }
-  const dateLabels = periods.map(trendDateRange);
+  const dateLabels = periods.map((period) => {
+    const end = window.DashboardLogic.parseDayMonthYear(period.dateTo);
+    return end ? window.DashboardLogic.formatDay(end).replace(/ \d{4}$/, "") : trendDateRange(period);
+  });
   const labelExtent = Math.ceil(Math.max(80, ...dateLabels.map((label) => label.length * 7)) / Math.sqrt(2));
   const pad = { top: 22, right: labelExtent + 24, bottom: labelExtent + 40, left: 66 };
   const height = 266 + pad.bottom;
@@ -612,17 +636,22 @@ function renderTrend() {
 function renderPtRevenue() {
   const body = document.querySelector("#ptRevenueBody");
   body.innerHTML = currentRows().map((item) => {
-    const status = statusFor(item.actuals.ptMmaPacksSold, item.targets.ptMmaPacksSold);
-    const totalRevenue = (item.actuals.posRevenue || 0) + (item.actuals.sessionSplitIncome || 0);
+    const missingPacks = metricMissing(item, { key: "ptMmaPacksSold" });
+    const missingSessions = metricMissing(item, { key: "paidPtSessions" });
+    const missingPos = metricMissing(item, { key: "posRevenue" });
+    const missingSplit = metricMissing(item, { key: "sessionSplitIncome" });
+    const status = missingPacks ? "pending" : statusFor(item.actuals.ptMmaPacksSold, item.targets.ptMmaPacksSold);
+    const totalRevenue = (missingPos ? 0 : item.actuals.posRevenue || 0) + (missingSplit ? 0 : item.actuals.sessionSplitIncome || 0);
+    const cell = (missing, text) => missing ? "No data" : text;
     return `
       <tr>
         <td>${escapeHtml(item.club)}</td>
-        <td>${number.format(item.actuals.ptMmaPacksSold || 0)}</td>
-        <td>${number.format(item.actuals.paidPtSessions || 0)}</td>
-        <td>${money.format(item.actuals.posRevenue || 0)}</td>
-        <td>${money.format(item.actuals.sessionSplitIncome || 0)}</td>
-        <td>${money.format(totalRevenue)}</td>
-        <td><span class="status ${status}">${statusText(status)}</span></td>
+        <td>${cell(missingPacks, number.format(item.actuals.ptMmaPacksSold || 0))}</td>
+        <td>${cell(missingSessions, number.format(item.actuals.paidPtSessions || 0))}</td>
+        <td>${cell(missingPos, money.format(item.actuals.posRevenue || 0))}</td>
+        <td>${cell(missingSplit, money.format(item.actuals.sessionSplitIncome || 0))}</td>
+        <td>${missingPos && missingSplit ? "No data" : money.format(totalRevenue)}</td>
+        <td><span class="status ${status}">${missingPacks ? "NO DATA" : statusText(status)}</span></td>
       </tr>
     `;
   }).join("");
@@ -640,23 +669,9 @@ function renderRentCosts() {
         <td>${money.format(item.actuals.ptRentCollected || 0)}</td>
         <td>${money.format(item.actuals.conditioningClassCosts || 0)}</td>
         <td>${money.format(item.actuals.skillsClassCosts || 0)}</td>
-        <td>
-          <div class="invoice-entry">
-            <span aria-hidden="true">$</span>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value="${invoiceAmount}"
-              inputmode="decimal"
-              data-coach-invoice-input="${escapeHtml(item.club)}"
-              aria-label="Invoices paid to coaches for ${escapeHtml(item.club)}"
-            >
-            <button type="button" data-save-coach-invoice="${escapeHtml(item.club)}">Save</button>
-          </div>
-        </td>
+        <td>${invoiceAmount ? money.format(invoiceAmount) : "No data"}</td>
         <td>${money.format(item.targets.classCostBudget || 0)}</td>
-        <td><span class="status ${status}">${statusText(status)}</span></td>
+        <td>${invoiceAmount ? `<span class="status ${status}">${statusText(status)}</span>` : `<span class="status pending">NO DATA</span>`}</td>
       </tr>
     `;
   }).join("");
@@ -664,39 +679,55 @@ function renderRentCosts() {
 
 function renderActions() {
   const container = document.querySelector("#fitnessActions");
-  const actions = currentRows().flatMap((item) =>
+  const rows = currentRows();
+  const severityRank = { red: 0, amber: 1, missing: 2 };
+  const actions = rows.flatMap((item) =>
     allKpis
       .filter((kpi) => kpi.target !== "reference")
       .map((kpi) => {
+        const missing = metricMissing(item, kpi, rows);
         const target = kpi.key === "paidClassCosts" ? item.targets.classCostBudget : item.targets[kpi.key];
         return {
           club: item.club,
           kpi,
           actual: item.actuals[kpi.key] || 0,
           target: target || 0,
-          status: statusFor(item.actuals[kpi.key], target, kpi.target),
-          focus: item.focus
+          missing,
+          status: missing ? "missing" : statusFor(item.actuals[kpi.key] || 0, target, kpi.target)
         };
       })
-      .filter((action) => action.status !== "green")
-  ).sort((a, b) => severity(a) - severity(b));
+      .filter((action) => action.status === "red" || action.status === "amber" || action.status === "missing")
+  ).sort((a, b) => {
+    const clubOrder = window.DashboardLogic.orderClubs([a.club, b.club]);
+    if (a.club !== b.club) return clubOrder[0] === a.club ? -1 : 1;
+    return severityRank[a.status] - severityRank[b.status];
+  });
 
   if (!actions.length) {
     container.innerHTML = `<article class="club-card"><p class="note">No under-target Fitness KPIs for the current selection.</p></article>`;
     return;
   }
 
+  let lastClub = "";
   container.innerHTML = actions.map((item) => {
+    const heading = item.club === lastClub ? "" : `<h3 class="action-club">${escapeHtml(item.club)}</h3>`;
+    lastClub = item.club;
     const gap = item.kpi.target === "maximum" ? item.actual - item.target : item.target - item.actual;
-    const label = item.kpi.target === "maximum" ? "over budget" : "gap";
+    const message = item.missing
+      ? `${item.kpi.label} has no data for this period.`
+      : item.kpi.target === "maximum"
+        ? `${item.kpi.label} is ${formatValue(Math.max(0, gap), item.kpi.type)} over the budget of ${formatValue(item.target, item.kpi.type)}.`
+        : `${item.kpi.label} is ${formatValue(Math.max(0, gap), item.kpi.type)} below the target of ${formatValue(item.target, item.kpi.type)}.`;
+    const badge = item.missing ? "NO DATA" : statusText(item.status);
     return `
+      ${heading}
       <article class="action-card">
         <div>
-          <span class="status ${item.status}">${statusText(item.status)}</span>
-          <h3>${escapeHtml(item.club)}: ${escapeHtml(item.kpi.label)}</h3>
-          <p>${escapeHtml(item.focus)}</p>
+          <span class="status ${item.missing ? "pending" : item.status}">${badge}</span>
+          <h3>${escapeHtml(item.kpi.label)}</h3>
+          <p>${escapeHtml(message)}</p>
         </div>
-        <strong>${formatValue(Math.max(0, gap), item.kpi.type)} ${label}</strong>
+        <strong>${item.missing ? "No data" : formatValue(item.actual, item.kpi.type)}</strong>
       </article>
     `;
   }).join("");
@@ -729,7 +760,7 @@ function slaRecordKey(period, club) {
 }
 
 function slaStatusFor(value, field) {
-  if (!value && value !== 0) return "pending";
+  if (!value) return "pending";
   if (field.mode === "maximum") {
     if (!value) return "pending";
     if (value <= field.target) return "green";
@@ -745,7 +776,7 @@ function slaScoreForRows(rows, fields = slaFields) {
   const statuses = rows.flatMap((row) =>
     fields.map((field) => slaStatusFor(row.actuals[field.key], field))
   ).filter((status) => status !== "pending");
-  if (!statuses.length) return 0;
+  if (!statuses.length) return null;
   const points = statuses.reduce((sum, status) => sum + (status === "green" ? 1 : status === "amber" ? 0.5 : 0), 0);
   return round1((points / statuses.length) * 100);
 }
@@ -773,33 +804,43 @@ function renderSlaCompliance() {
   }
 
   container.innerHTML = rows.map((row) => {
+    const entered = slaEntered(row);
     const score = slaScoreForRows([row]);
-    const status = score >= 90 ? "green" : score >= 75 ? "amber" : "red";
+    const showScore = (fields) => {
+      const value = slaScoreForRows([row], fields);
+      return value === null ? "No data" : formatValue(value, "percent");
+    };
+    const status = !entered || score === null ? "pending" : score >= 90 ? "green" : score >= 75 ? "amber" : "red";
     return `
       <article class="club-card">
         <div class="card-head">
           <span class="club-name">${escapeHtml(row.club)}</span>
-          <span class="status ${status}">${statusText(status)}</span>
+          <span class="status ${status}">${entered ? statusText(status) : "NO DATA"}</span>
         </div>
         <div class="mini-grid">
-          <span><span class="mini-label">SLA Compliance</span><strong class="mini-value">${formatValue(score, "percent")}</strong></span>
-          <span><span class="mini-label">Recruitment</span><strong class="mini-value">${formatValue(slaScoreForRows([row], slaGroups[0].fields), "percent")}</strong></span>
-          <span><span class="mini-label">Audits & Training</span><strong class="mini-value">${formatValue(slaScoreForRows([row], slaGroups[1].fields), "percent")}</strong></span>
-          <span><span class="mini-label">Reporting</span><strong class="mini-value">${formatValue(slaScoreForRows([row], slaGroups[2].fields), "percent")}</strong></span>
+          <span><span class="mini-label">SLA Compliance</span><strong class="mini-value">${score === null ? "No data" : formatValue(score, "percent")}</strong></span>
+          <span><span class="mini-label">Recruitment</span><strong class="mini-value">${showScore(slaGroups[0].fields)}</strong></span>
+          <span><span class="mini-label">Audits & Training</span><strong class="mini-value">${showScore(slaGroups[1].fields)}</strong></span>
+          <span><span class="mini-label">Reporting</span><strong class="mini-value">${showScore(slaGroups[2].fields)}</strong></span>
         </div>
       </article>
     `;
   }).join("");
 }
 
+function slaEntered(row) {
+  return slaFields.some((field) => Number(row.actuals?.[field.key]) > 0);
+}
+
 function renderSlaClubCard(row, fields) {
+  const entered = slaEntered(row);
   const score = slaScoreForRows([row], fields);
-  const status = score >= 90 ? "green" : score >= 75 ? "amber" : "red";
+  const status = !entered ? "pending" : score >= 90 ? "green" : score >= 75 ? "amber" : "red";
   return `
     <article class="club-card">
       <div class="card-head">
         <span class="club-name">${escapeHtml(row.club)}</span>
-        <span class="status ${status}">${statusText(status)}</span>
+        <span class="status ${status}">${entered ? statusText(status) : "NO DATA"}</span>
       </div>
       <div class="sla-item-grid">
         ${fields.map((field) => renderSlaMini(row, field)).join("")}
@@ -809,7 +850,16 @@ function renderSlaClubCard(row, fields) {
 }
 
 function renderSlaMini(row, field) {
-  const value = row.actuals[field.key] || 0;
+  const value = Number(row.actuals[field.key] || 0);
+  if (!value) {
+    return `
+    <span class="sla-mini">
+      <span class="mini-label">${escapeHtml(field.label)}</span>
+      <strong class="mini-value">No data</strong>
+      <span class="target-note">${field.mode === "maximum" ? "Target max" : "Target"} ${formatValue(field.target, field.type)}</span>
+      <span class="status pending">NO DATA</span>
+    </span>`;
+  }
   const status = slaStatusFor(value, field);
   return `
     <span class="sla-mini">
@@ -867,7 +917,7 @@ function selectedSlaValues() {
 
 async function loadFitnessSla() {
   try {
-    const response = await fetch("/api/fitness-sla", { headers: { "Accept": "application/json" } });
+    const response = await apiFetch("/api/fitness-sla", { headers: { "Accept": "application/json" } });
     if (!response.ok) throw new Error(`Fitness SLA tracking returned ${response.status}`);
     const payload = await response.json();
     slaRecords = payload.records || {};
@@ -877,6 +927,7 @@ async function loadFitnessSla() {
 }
 
 async function saveFitnessSla() {
+  if (!window.DashboardUI?.confirmSave("Save SLA tracking for this club and period?")) return;
   const button = slaTrackingForm.querySelector("button");
   const originalText = button.textContent;
   const period = fitnessData.periods.find((item) => item.id === state.period) || {};
@@ -885,7 +936,7 @@ async function saveFitnessSla() {
   slaTrackingStatus.textContent = "Saving SLA tracking...";
 
   try {
-    const response = await fetch("/api/fitness-sla", {
+    const response = await apiFetch("/api/fitness-sla", {
       method: "POST",
       headers: {
         "Accept": "application/json",
@@ -963,7 +1014,7 @@ function applyManualActuals(records = {}) {
 
 async function loadManualActuals() {
   try {
-    const response = await fetch("/api/fitness-manual-actuals", { headers: { "Accept": "application/json" } });
+    const response = await apiFetch("/api/fitness-manual-actuals", { headers: { "Accept": "application/json" } });
     if (!response.ok) throw new Error(`Coach invoices returned ${response.status}`);
     const payload = await response.json();
     applyManualActuals(payload.records || {});
@@ -973,6 +1024,7 @@ async function loadManualActuals() {
 }
 
 async function saveCoachInvoices(options = {}) {
+  if (!options.skipConfirm && !window.DashboardUI?.confirmSave("Save coach invoices for this club and period?")) return;
   const club = options.club || coachInvoiceClub.value;
   const value = options.value ?? Number(coachInvoicesPaid.value || 0);
   const statusElement = options.statusElement || coachInvoicesStatus;
@@ -984,7 +1036,7 @@ async function saveCoachInvoices(options = {}) {
   statusElement.textContent = "Saving coach invoices...";
 
   try {
-    const response = await fetch("/api/fitness-manual-actuals", {
+    const response = await apiFetch("/api/fitness-manual-actuals", {
       method: "POST",
       headers: { "Accept": "application/json", "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1068,7 +1120,7 @@ function selectedTargetValues() {
 
 async function loadFitnessTargets() {
   try {
-    const response = await fetch("/api/fitness-targets", { headers: { "Accept": "application/json" } });
+    const response = await apiFetch("/api/fitness-targets", { headers: { "Accept": "application/json" } });
     if (!response.ok) throw new Error(`Fitness targets returned ${response.status}`);
     const payload = await response.json();
     applySavedTargets(payload.targets || {});
@@ -1078,6 +1130,7 @@ async function loadFitnessTargets() {
 }
 
 async function saveFitnessTargets() {
+  if (!window.DashboardUI?.confirmSave("Save fitness targets for this club? This updates the targets used on the scorecard.")) return;
   const button = fitnessTargetsForm.querySelector("button");
   const originalText = button.textContent;
   button.disabled = true;
@@ -1085,7 +1138,7 @@ async function saveFitnessTargets() {
   fitnessTargetsStatus.textContent = "Saving Fitness KPI targets...";
 
   try {
-    const response = await fetch("/api/fitness-targets", {
+    const response = await apiFetch("/api/fitness-targets", {
       method: "POST",
       headers: {
         "Accept": "application/json",
@@ -1116,6 +1169,23 @@ function severity(item) {
   return 2;
 }
 
+function clubFocus(item) {
+  const stored = String(item.focus || "");
+  if (/pack sales are below target/i.test(stored)) {
+    return "Check-ins are loaded. PT packs, PT revenue, class spend, recruitment and audits show No data where Hapana did not return a figure or nothing has been entered.";
+  }
+  return stored.replace(/Sept/g, "Sep");
+}
+
+function renderAttentionPanel() {
+  const rows = currentRows();
+  const items = [];
+  const reds = rows.filter((item) => clubStatus(item) === "red");
+  if (reds.length) items.push({ tone: "bad", text: `${reds.map((item) => item.club).join(", ")} ${reds.length === 1 ? "has" : "have"} a red KPI with data entered. Blank PT, invoice and SLA figures are marked No data instead of red.` });
+  else if (rows.length) items.push({ tone: "watch", text: "No entered KPI is red for this selection. Figures with no source data are marked No data." });
+  window.DashboardUI?.renderAttention(items);
+}
+
 function render() {
   renderSource();
   renderMetrics();
@@ -1131,6 +1201,7 @@ function render() {
   renderCoachInvoicesEditor();
   renderTargetsEditor();
   renderActions();
+  renderAttentionPanel();
 }
 
 function switchView(view) {
@@ -1211,7 +1282,7 @@ function logFitnessDashboardView() {
 
 async function loadFitnessData() {
   try {
-    const response = await fetch("/api/fitness-metrics?stored=1", { headers: { "Accept": "application/json" } });
+    const response = await apiFetch("/api/fitness-metrics?stored=1", { headers: { "Accept": "application/json" } });
     if (!response.ok) throw new Error(`Fitness metrics returned ${response.status}`);
     const payload = await response.json();
     if (!Array.isArray(payload.rows)) throw new Error("Fitness metrics returned invalid rows");
@@ -1250,11 +1321,11 @@ async function refreshFitnessMetrics() {
     fitnessRefreshStatus.textContent = "Updating Fitness KPIs from Core Hapana...";
     const params = new URLSearchParams({
       all: "1",
-      date_from: toHapanaDate(fitnessDateFrom.value),
-      date_to: toHapanaDate(fitnessDateTo.value),
+      date_from: toHapanaDate(window.DashboardUI.readDateInput(fitnessDateFrom)),
+      date_to: toHapanaDate(window.DashboardUI.readDateInput(fitnessDateTo)),
       period_mode: "custom"
     });
-    const response = await fetch(`/api/fitness-metrics?${params.toString()}`, {
+    const response = await apiFetch(`/api/fitness-metrics?${params.toString()}`, {
       headers: { "Accept": "application/json" }
     });
     const body = await response.json().catch(() => ({}));
@@ -1307,7 +1378,7 @@ async function loadFitnessRange(mode, dateFrom, dateTo) {
       date_to: toHapanaDate(dateTo),
       period_mode: mode
     });
-    const response = await fetch(`/api/fitness-metrics?${params.toString()}`, {
+    const response = await apiFetch(`/api/fitness-metrics?${params.toString()}`, {
       headers: { "Accept": "application/json" }
     });
     const body = await response.json().catch(() => ({}));
@@ -1408,13 +1479,25 @@ function errorText(error) {
 }
 
 async function init() {
-  await loadFitnessData();
-  await loadFitnessSla();
-  initControls();
-  await syncFitnessDatesWithDdWeek();
-  render();
-  showLocalFitnessNotice();
-  window.dashboardAuth?.ready?.then(logFitnessDashboardView);
+  try {
+    window.DashboardUI?.showStatus("Loading fitness data…");
+    await window.dashboardAuth?.ready;
+    await loadFitnessData();
+    await loadFitnessSla();
+    initControls();
+    await syncFitnessDatesWithDdWeek();
+    window.DashboardUI?.enhanceDateInputs(document);
+    window.DashboardUI?.installClubFilter(clubFilter);
+    syncClubSelection();
+    render();
+    document.body.classList.remove("dashboard-pending");
+    window.DashboardUI?.hideStatus();
+    showLocalFitnessNotice();
+    logFitnessDashboardView();
+  } catch (error) {
+    document.body.classList.remove("dashboard-pending");
+    window.DashboardUI?.showStatus(errorText(error), "error");
+  }
 }
 
 init();

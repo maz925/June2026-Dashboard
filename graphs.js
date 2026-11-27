@@ -1,11 +1,10 @@
 const GRAPHS_APP_VERSION = "revenue-graphs-purple-palette-v8-2026-09-25";
 const CLUB_ORDER = ["Bankstown", "Wetherill Park", "580G", "Woolooware"];
-const PRODUCTION_REVENUE_ENDPOINT = "https://ufcgym-dashboard-june2026.vercel.app/api/hapana";
 const CLUB_YOY_START_DATES = {
   Woolooware: "2025-06-01"
 };
 
-let data = window.TRACKER_DATA || { rolling: [], source: "Workbook data", updated: null };
+let data = { rolling: [], source: "Workbook data", updated: null };
 
 const money = new Intl.NumberFormat("en-AU", {
   style: "currency",
@@ -28,19 +27,36 @@ const clubFilter = document.querySelector("#clubFilter");
 const displayMode = document.querySelector("#displayMode");
 
 async function init() {
-  await loadLiveData();
-  initControls();
-  render();
-  window.dashboardAuth?.ready?.then(logGraphView);
+  try {
+    window.DashboardUI?.showStatus("Loading revenue graphs…");
+    await window.dashboardAuth?.ready;
+    await loadLiveData();
+    initControls();
+    window.DashboardUI?.installClubFilter(clubFilter);
+    syncClubSelection();
+    render();
+    document.body.classList.remove("dashboard-pending");
+    window.DashboardUI?.hideStatus();
+    logGraphView();
+  } catch (error) {
+    document.body.classList.remove("dashboard-pending");
+    window.DashboardUI?.showStatus(error.message || "Revenue graphs could not load.", "error");
+  }
 }
 
 async function loadLiveData() {
+  const fetchImpl = window.DashboardUI?.fetch || fetch;
   try {
-    const localPreview = window.location.hostname === "localhost" ||
-      window.location.hostname === "127.0.0.1" ||
-      window.location.protocol === "file:";
-    const endpoint = localPreview ? PRODUCTION_REVENUE_ENDPOINT : "/api/hapana";
-    const response = await fetch(endpoint, { headers: { "Accept": "application/json" } });
+    const workbookResponse = await fetchImpl("/api/workbook", { headers: { "Accept": "application/json" } });
+    if (workbookResponse.ok) {
+      const workbook = await workbookResponse.json();
+      if (Array.isArray(workbook.rolling)) data = { ...data, ...workbook };
+    }
+  } catch (error) {
+    console.warn("Workbook fallback could not load.", error);
+  }
+  try {
+    const response = await fetchImpl("/api/hapana", { headers: { "Accept": "application/json" } });
     if (!response.ok) throw new Error(`Revenue API returned ${response.status}`);
     const payload = await response.json();
     if (!Array.isArray(payload.rolling)) throw new Error("Revenue API returned invalid rolling rows");
@@ -123,6 +139,11 @@ function render() {
   renderPeriod();
   renderGraphs();
   renderComparisonTable();
+  const notes = window.DashboardLogic.suspiciousWeeks(ytdRows());
+  window.DashboardUI?.renderAttention(notes.length ? [{
+    tone: "watch",
+    text: `${notes.length} stored weeks are far below that club's usual direct debit or fall before Woolooware opened. The charts keep the stored numbers and list the reason underneath.`
+  }] : []);
 }
 
 function renderSource() {
@@ -134,7 +155,7 @@ function renderSource() {
   };
   setText("#connectionStatus", statuses[state.connection] || "Loading");
   setText("#sourceName", data.source || "Hapana Core Net Revenue Detail");
-  setText("#updatedAt", data.updated ? `Prepared ${data.updated} | ${GRAPHS_APP_VERSION}` : GRAPHS_APP_VERSION);
+  window.DashboardUI?.paintFreshness(data.updated, GRAPHS_APP_VERSION);
 }
 
 function renderMetrics() {
@@ -159,8 +180,13 @@ function renderPeriod() {
     return;
   }
   const startLabel = earliest ? dateFormat.format(earliest) : "1 Jan";
-  setText("#ytdPeriod", `${startLabel} to ${dateFormat.format(latest)} ${latest.getFullYear()}`);
-  setText("#latestWeek", `${dateFormat.format(latest)} ${latest.getFullYear()}`);
+  const year = latest.getFullYear();
+  setText("#ytdDDLabel", `Calendar ${year} DD`);
+  setText("#ytdPOSLabel", `Calendar ${year} POS`);
+  setText("#ytdRevenueLabel", `Calendar ${year} revenue`);
+  setText("#ytdPOSPercentLabel", `Calendar ${year} POS %`);
+  setText("#ytdPeriod", `Calendar year: ${startLabel.replace(/Sept/g, "Sep")} to ${dateFormat.format(latest).replace(/Sept/g, "Sep")} ${year}`);
+  setText("#latestWeek", `${dateFormat.format(latest).replace(/Sept/g, "Sep")} ${year}`);
 }
 
 function renderGraphs() {
@@ -232,6 +258,7 @@ function renderClubGraph(club, rows, graphType) {
         <p>${formatMoney(ddTotal)} DD | ${formatMoney(posTotal)} POS | ${ddTotal ? number.format((posTotal / ddTotal) * 100) : "0"}% POS</p>
       </div>
       <div class="trend-chart">${chart}</div>
+      ${gapNotes(rows)}
       ${isYoy && comparison.startDate ? `
         <p class="trend-comparison-note">YoY comparison begins with the June 2025 opening period.</p>
       ` : ""}
@@ -253,14 +280,14 @@ function renderComparisonTable() {
   head.innerHTML = `
     <tr>
       <th>Club</th>
-      <th>${currentYear || "Current"} DD</th>
-      <th>${priorYear || "Prior"} DD</th>
+      <th>${currentYear || "Current"} matched DD</th>
+      <th>${priorYear || "Prior"} matched DD</th>
       <th>DD change</th>
-      <th>${currentYear || "Current"} POS</th>
-      <th>${priorYear || "Prior"} POS</th>
+      <th>${currentYear || "Current"} matched POS</th>
+      <th>${priorYear || "Prior"} matched POS</th>
       <th>POS change</th>
-      <th>${currentYear || "Current"} total</th>
-      <th>${priorYear || "Prior"} total</th>
+      <th>${currentYear || "Current"} matched total</th>
+      <th>${priorYear || "Prior"} matched total</th>
       <th>Total change</th>
     </tr>
   `;
@@ -281,7 +308,7 @@ function renderComparisonTable() {
   body.innerHTML = rows.join("");
   setText(
     "#comparisonPeriod",
-    `${currentYear} YTD is compared with the matched ${priorYear} reporting weeks. Woolooware uses June onward to match its June 2025 opening.`
+    `The cards above are calendar ${currentYear} (every stored week from 1 Jan). This table is only the weeks with a ${priorYear} match. Woolooware starts in June 2025, so its January–May ${currentYear} direct debit is in the calendar total and not in the All Clubs row here. Declines are in red.`
   );
 }
 
@@ -412,39 +439,54 @@ function cumulativeYoyRows(rows) {
 }
 
 function lineChart({ rows, series, title }) {
+  const posSeries = series.filter((item) => /pos/i.test(item.key));
+  const ddSeries = series.filter((item) => !posSeries.includes(item));
+  const split = Boolean(posSeries.length && ddSeries.length);
   const width = 980;
-  const height = 320;
-  const pad = { top: 20, right: 34, bottom: 54, left: 84 };
+  const height = 360;
+  const pad = { top: 20, right: split ? 84 : 28, bottom: 68, left: 84 };
   const plotWidth = width - pad.left - pad.right;
   const plotHeight = height - pad.top - pad.bottom;
-  const maxValue = Math.max(1, ...rows.flatMap((row) => series.map((item) => numericValue(row[item.key]))));
-  const yStep = yTickStep(maxValue);
-  const yMax = Math.max(yStep, Math.ceil(maxValue / yStep) * yStep);
+  const maxOf = (items) => Math.max(1, ...rows.flatMap((row) => items.map((item) => numericValue(row[item.key]))));
+  const leftMaxValue = maxOf(split ? ddSeries : series);
+  const rightMaxValue = split ? maxOf(posSeries) : leftMaxValue;
+  const leftStep = yTickStep(leftMaxValue);
+  const rightStep = yTickStep(rightMaxValue);
+  const leftMax = Math.max(leftStep, Math.ceil(leftMaxValue / leftStep) * leftStep);
+  const rightMax = Math.max(rightStep, Math.ceil(rightMaxValue / rightStep) * rightStep);
   const x = (index) => pad.left + (rows.length === 1 ? plotWidth / 2 : (index / (rows.length - 1)) * plotWidth);
-  const y = (value) => pad.top + plotHeight - (value / yMax) * plotHeight;
-  const ticks = Array.from({ length: Math.floor(yMax / yStep) + 1 }, (_, index) => index * yStep);
+  const yFor = (value, max) => pad.top + plotHeight - (value / max) * plotHeight;
+  const leftTicks = Array.from({ length: Math.floor(leftMax / leftStep) + 1 }, (_, index) => index * leftStep);
+  const rightTicks = Array.from({ length: Math.floor(rightMax / rightStep) + 1 }, (_, index) => index * rightStep);
   const labelIndexes = xLabelIndexes(rows.length);
 
-  const grid = ticks.map((tick) => `
-    <line class="trend-grid" x1="${pad.left}" y1="${y(tick)}" x2="${width - pad.right}" y2="${y(tick)}"></line>
-    <text class="trend-label" x="${pad.left - 12}" y="${y(tick) + 4}" text-anchor="end">${formatMoney(tick)}</text>
-  `).join("");
+  const grid = leftTicks.map((tick) => `
+    <line class="trend-grid" x1="${pad.left}" y1="${yFor(tick, leftMax)}" x2="${width - pad.right}" y2="${yFor(tick, leftMax)}"></line>
+    <text class="trend-label" x="${pad.left - 12}" y="${yFor(tick, leftMax) + 4}" text-anchor="end">${formatMoney(tick)}</text>
+  `).join("") + (split ? rightTicks.map((tick) => `
+    <text class="trend-label" x="${width - pad.right + 10}" y="${yFor(tick, rightMax) + 4}">${formatMoney(tick)}</text>
+  `).join("") : "");
 
   const labels = labelIndexes.map((index) => `
-    <text class="trend-label" x="${x(index)}" y="${height - 20}" text-anchor="middle">${dateFormat.format(parseDate(rows[index].weekEnding))}</text>
+    <text class="trend-label" x="${x(index)}" y="${height - 42}" text-anchor="end" transform="rotate(-40 ${x(index)} ${height - 42})">${dateFormat.format(parseDate(rows[index].weekEnding)).replace(/Sept/g, "Sep")}</text>
   `).join("");
 
   const paths = series.map((item) => {
+    const max = split && /pos/i.test(item.key) ? rightMax : leftMax;
     const points = rows
       .map((row, index) => ({ row, index, value: row[item.key] }))
       .filter((point) => point.value !== null && point.value !== undefined && point.value !== "");
     if (!points.length) return "";
-    const path = points.map((point, index) => `${index === 0 ? "M" : "L"} ${x(point.index)},${y(numericValue(point.value))}`).join(" ");
-    const dots = points.map(({ row, index, value }) => `
-      <circle class="trend-dot" cx="${x(index)}" cy="${y(numericValue(value))}" r="3.5" fill="${item.color}">
-        <title>${escapeHtml(item.label)} ${dateFormat.format(parseDate(item.key.startsWith("prior") ? row.priorWeek : row.weekEnding))}: ${formatMoney(value)}</title>
-      </circle>
-    `).join("");
+    const path = points.map((point, index) => `${index === 0 ? "M" : "L"} ${x(point.index)},${yFor(numericValue(point.value), max)}`).join(" ");
+    const dots = points.map(({ row, index, value }) => {
+      const week = item.key.startsWith("prior") ? row.priorWeek : row.weekEnding;
+      const start = shiftIsoDate(week, -6);
+      const tip = `${item.label}: ${dateFormat.format(parseDate(start)).replace(/Sept/g, "Sep")} to ${dateFormat.format(parseDate(week)).replace(/Sept/g, "Sep")}. ${formatMoney(value)}.`;
+      return `
+      <circle class="trend-dot" data-tip="${escapeHtml(tip)}" cx="${x(index)}" cy="${yFor(numericValue(value), max)}" r="3.8" fill="${item.color}">
+        <title>${escapeHtml(tip)}</title>
+      </circle>`;
+    }).join("");
     const dash = item.dash ? ` stroke-dasharray="${item.dash}"` : "";
     return `<path class="trend-line" d="${path}" stroke="${item.color}"${dash}></path>${dots}`;
   }).join("");
@@ -453,7 +495,8 @@ function lineChart({ rows, series, title }) {
     const swatch = item.dash
       ? `repeating-linear-gradient(90deg, ${item.color} 0 6px, transparent 6px 10px)`
       : item.color;
-    return `<span><i class="trend-swatch" style="background:${swatch}"></i>${escapeHtml(item.label)}</span>`;
+    const axis = split && /pos/i.test(item.key) ? " (right axis)" : split ? " (left axis)" : "";
+    return `<span><i class="trend-swatch" style="background:${swatch}"></i>${escapeHtml(item.label)}${axis}</span>`;
   }).join("");
 
   return `
@@ -469,9 +512,12 @@ function lineChart({ rows, series, title }) {
 }
 
 function xLabelIndexes(length) {
-  if (length <= 6) return Array.from({ length }, (_, index) => index);
-  const last = length - 1;
-  return [...new Set([0, Math.round(last * 0.25), Math.round(last * 0.5), Math.round(last * 0.75), last])];
+  if (length <= 14) return Array.from({ length }, (_, index) => index);
+  const step = Math.ceil(length / 12);
+  const indexes = [];
+  for (let index = 0; index < length; index += step) indexes.push(index);
+  if (indexes[indexes.length - 1] !== length - 1) indexes.push(length - 1);
+  return indexes;
 }
 
 function yTickStep(maxValue) {
@@ -525,7 +571,14 @@ function formatMoney(value) {
 }
 
 function setText(selector, value) {
-  document.querySelector(selector).textContent = value;
+  const node = document.querySelector(selector);
+  if (node) node.textContent = value;
+}
+
+function gapNotes(rows) {
+  const notes = window.DashboardLogic.suspiciousWeeks(rows);
+  if (!notes.length) return "";
+  return `<ul class="gap-notes">${notes.map((note) => `<li><strong>${escapeHtml(note.weekEnding)}</strong>: ${escapeHtml(note.reason)}</li>`).join("")}</ul>`;
 }
 
 function escapeHtml(value) {

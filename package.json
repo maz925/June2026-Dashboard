@@ -6,7 +6,8 @@
     "node": "22.x"
   },
   "scripts": {
-    "test:api": "node -e \"require('./api/hapana.js'); require('./api/core-report.js'); require('./api/weekly-revenue.js'); require('./api/member-metrics.js'); require('./api/member-cron.js'); require('./api/pos-metrics.js'); require('./api/fitness-metrics.js'); require('./api/fitness-targets.js'); require('./api/fitness-manual-actuals.js'); require('./api/fitness-sla.js'); require('./api/auth-config.js'); require('./api/view-log.js'); console.log('api modules loaded')\""
+    "test": "node --test tests/*.test.cjs",
+    "test:api": "node -e \"require('./api/hapana.js'); require('./api/core-report.js'); require('./api/weekly-revenue.js'); require('./api/member-metrics.js'); require('./api/member-cron.js'); require('./api/pos-metrics.js'); require('./api/fitness-metrics.js'); require('./api/fitness-targets.js'); require('./api/fitness-manual-actuals.js'); require('./api/fitness-sla.js'); require('./api/auth-config.js'); require('./api/view-log.js'); require('./api/access.js'); require('./api/workbook.js'); console.log('api modules loaded')\""
   },
   "dependencies": {
     "@vercel/blob": "^2.4.0"

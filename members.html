@@ -1,12 +1,13 @@
 <!doctype html>
-<html lang="en">
+<html lang="en-AU">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>UFC GYM Member Dashboard</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css?v=2026-11-27-review">
 </head>
-<body class="members-theme">
+<body class="members-theme dashboard-pending">
   <header class="topbar">
     <div>
       <p class="eyebrow">UFC GYM Team Dashboard</p>
@@ -27,6 +28,9 @@
   </header>
 
   <main>
+    <p id="pageStatus" class="page-status" role="status">Loading member data…</p>
+    <section id="attention" class="attention" hidden></section>
+    <p id="filterNote" class="filter-note" hidden></p>
     <section class="toolbar" aria-label="Dashboard filters">
       <label class="filter">
         <span>Clubs</span>
@@ -83,7 +87,7 @@
         <strong id="weekRevenueCancellations" class="negative"></strong>
       </article>
       <article>
-        <span class="mini-label" id="weekNmmLabel">NMM - Current Week</span>
+        <span class="mini-label" id="weekNmmLabel" data-define="nmm">NMM - Current Week</span>
         <strong id="weekNmm"></strong>
       </article>
       <article>
@@ -95,7 +99,7 @@
         <strong id="mtdRevenueCancellations" class="negative"></strong>
       </article>
       <article>
-        <span class="mini-label" id="mtdNmmLabel">NMM - MTD</span>
+        <span class="mini-label" id="mtdNmmLabel" data-define="nmm">NMM - MTD</span>
         <strong id="mtdNmm"></strong>
       </article>
     </section>
@@ -104,7 +108,7 @@
       <article>
         <span class="mini-label" id="previousMovementLabel">Previous Month</span>
         <div class="movement-grid">
-          <span><span class="mini-label">Total Packages</span><strong id="previousNewSales"></strong></span>
+          <span><span class="mini-label" data-define="packages">Total packages</span><strong id="previousNewSales"></strong></span>
           <span><span class="mini-label">Standard Packages</span><strong id="previousStandardNewSales"></strong></span>
           <span><span class="mini-label">FP Packages</span><strong id="previousFitnessPassportNewSales"></strong></span>
           <span><span class="mini-label">Paid Cancellations</span><strong id="previousCancellations" class="negative"></strong></span>
@@ -114,7 +118,7 @@
       <article>
         <span class="mini-label" id="currentMovementLabel">Current MTD</span>
         <div class="movement-grid">
-          <span><span class="mini-label">Total Packages</span><strong id="currentNewSales"></strong></span>
+          <span><span class="mini-label" data-define="packages">Total packages</span><strong id="currentNewSales"></strong></span>
           <span><span class="mini-label">Standard Packages</span><strong id="currentStandardNewSales"></strong></span>
           <span><span class="mini-label">FP Packages</span><strong id="currentFitnessPassportNewSales"></strong></span>
           <span><span class="mini-label">Paid Cancellations</span><strong id="currentCancellations" class="negative"></strong></span>
@@ -125,7 +129,7 @@
 
     <section class="cancellation-panel" aria-label="Cancellation forecast">
       <article>
-        <span class="mini-label" id="currentCancellationLabel">Current Month Cancellations</span>
+        <span class="mini-label" id="currentCancellationLabel" data-define="scheduled-cancellations">Scheduled cancels this month</span>
         <strong id="currentMonthCancellations"></strong>
       </article>
       <article>
@@ -178,9 +182,11 @@
     <section class="view" id="detailView">
       <div class="section-heading">
         <h2>Club Detail</h2>
-        <p>Active mix, current cancellations, current suspensions and new memberships by club.</p>
+        <p>Active people, paid cancellations through the as-at date, and new profiles created this month. Package sales are counted separately because one person can buy more than one package.</p>
       </div>
-      <div class="table-wrap">
+      <details class="detail-fold" open>
+        <summary>Club table</summary>
+      <div class="table-wrap tall-table">
         <table>
           <thead>
             <tr>
@@ -190,19 +196,22 @@
               <th>Fitness Passport</th>
               <th>Paid Cancellations MTD</th>
               <th>Current Suspensions</th>
-              <th>New Memberships MTD</th>
-              <th>NMM MTD</th>
-              <th>Rows Read</th>
+              <th data-define="new-profiles">New profiles MTD</th>
+              <th data-define="nmm">NMM MTD</th>
+              <th data-define="export-rows">Export rows</th>
             </tr>
           </thead>
           <tbody id="memberDetailBody"></tbody>
         </table>
       </div>
+      </details>
     </section>
   </main>
 
   <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <script src="auth.js"></script>
-  <script src="members.js?v=2026-10-23-mtd"></script>
+  <script src="auth.js?v=2026-11-27-review"></script>
+  <script src="dashboard-logic.js?v=2026-11-27-review"></script>
+  <script src="dashboard-ui.js?v=2026-11-27-review"></script>
+  <script src="members.js?v=2026-11-27-review"></script>
 </body>
 </html>

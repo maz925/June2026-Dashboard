@@ -1,5 +1,6 @@
 const DEFAULT_HAPANA_BASE_URL = "https://api.hapana.com/v2";
 const { get } = require("@vercel/blob");
+const { authoriseRead } = require("./access");
 
 const HAPANA_PROXY_VERSION = "hapana-complete-club-weeks-v4-2026-09-24";
 
@@ -21,6 +22,7 @@ module.exports = async function handler(request, response) {
   }
 
   try {
+    if (!(await authoriseRead(request, response))) return;
     const url = new URL(request.url, `https://${request.headers.host || "localhost"}`);
 
     if (url.searchParams.get("mode") === "sites") {

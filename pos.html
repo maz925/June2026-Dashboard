@@ -1,12 +1,13 @@
 <!doctype html>
-<html lang="en">
+<html lang="en-AU">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>UFC GYM POS Dashboard</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css?v=2026-11-27-review">
 </head>
-<body class="pos-theme">
+<body class="pos-theme dashboard-pending">
   <header class="topbar">
     <div>
       <p class="eyebrow">UFC GYM Team Dashboard</p>
@@ -27,6 +28,9 @@
   </header>
 
   <main>
+    <p id="pageStatus" class="page-status" role="status">Loading POS data…</p>
+    <section id="attention" class="attention" hidden></section>
+    <p id="filterNote" class="filter-note" hidden></p>
     <section class="toolbar" aria-label="Dashboard filters">
       <label class="filter">
         <span>Clubs</span>
@@ -52,6 +56,10 @@
         <strong id="fees"></strong>
       </article>
       <article>
+        <span>Other POS</span>
+        <strong id="otherPos"></strong>
+      </article>
+      <article>
         <span>Transactions</span>
         <strong id="transactionCount"></strong>
       </article>
@@ -70,8 +78,8 @@
 
     <section class="report-downloader" aria-label="POS refresh">
       <div class="section-heading">
-        <h2>POS Refresh</h2>
-        <p>Updates the selected club from Core Hapana Net Revenue Detail.</p>
+        <h2>POS refresh range</h2>
+        <p>The dates below match the period on screen. Change them only when you want to reload a different range. Amounts are ex GST.</p>
       </div>
       <form id="posRefreshForm" class="download-form">
         <label class="filter">
@@ -98,9 +106,11 @@
     <section>
       <div class="section-heading">
         <h2>POS Detail</h2>
-        <p>Food & Beverage, Merchandise, Fees and top 5 products by club.</p>
+        <p>Food & beverage, merchandise, fees, other POS and top products. Scroll sideways for every column. Counts are transactions, and dollars are ex GST.</p>
       </div>
-      <div class="table-wrap">
+      <details class="detail-fold" open>
+        <summary>POS detail table</summary>
+      <div class="table-wrap tall-table">
         <table>
           <thead>
             <tr>
@@ -121,11 +131,14 @@
           <tbody id="posDetailBody"></tbody>
         </table>
       </div>
+      </details>
     </section>
   </main>
 
   <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <script src="auth.js"></script>
-  <script src="pos.js"></script>
+  <script src="auth.js?v=2026-11-27-review"></script>
+  <script src="dashboard-logic.js?v=2026-11-27-review"></script>
+  <script src="dashboard-ui.js?v=2026-11-27-review"></script>
+  <script src="pos.js?v=2026-11-27-review"></script>
 </body>
 </html>

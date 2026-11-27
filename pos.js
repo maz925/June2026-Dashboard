@@ -36,7 +36,7 @@ const posRefreshStatus = document.querySelector("#posRefreshStatus");
 
 async function loadPosData() {
   try {
-    const response = await fetch("/api/pos-metrics?stored=1", { headers: { "Accept": "application/json" } });
+    const response = await (window.DashboardUI?.fetch || fetch)("/api/pos-metrics?stored=1", { headers: { "Accept": "application/json" } });
     if (!response.ok) throw new Error(`POS metrics returned ${response.status}`);
     const payload = await response.json();
     if (!Array.isArray(payload.clubs)) throw new Error("POS metrics returned invalid club rows");
@@ -53,15 +53,27 @@ async function loadPosData() {
 }
 
 function initControls() {
-  const clubs = ["All Clubs", ...new Set([...CLUBS, ...state.data.clubs.map((row) => row.club)])].filter(Boolean);
+  const clubs = window.DashboardLogic.orderClubs(["All Clubs", ...new Set([...CLUBS, ...state.data.clubs.map((row) => row.club)])].filter(Boolean));
   clubFilter.multiple = true;
   clubFilter.size = Math.min(5, clubs.length);
   clubFilter.innerHTML = clubs.map((club) => `<option value="${escapeHtml(club)}">${escapeHtml(club)}</option>`).join("");
   applyClubSelection();
 
-  const rolling = rollingDateInputs();
-  posDateFrom.value = rolling.dateFrom;
-  posDateTo.value = rolling.dateTo;
+  const period = state.data.dateFrom && state.data.dateTo
+    ? { dateFrom: state.data.dateFrom, dateTo: state.data.dateTo }
+    : null;
+  const writeDate = (input, iso) => {
+    if (input.dataset.auDate === "1" && window.DashboardUI) window.DashboardUI.setDateInput(input, iso);
+    else input.value = iso;
+  };
+  if (period) {
+    writeDate(posDateFrom, formatInputDate(parseHapanaDate(period.dateFrom)));
+    writeDate(posDateTo, formatInputDate(parseHapanaDate(period.dateTo)));
+  } else {
+    const rolling = rollingDateInputs();
+    writeDate(posDateFrom, rolling.dateFrom);
+    writeDate(posDateTo, rolling.dateTo);
+  }
 }
 
 function previousReportableThursday(date) {
@@ -72,9 +84,11 @@ function previousReportableThursday(date) {
 }
 
 function visibleClubs() {
-  return isAllClubsSelected()
+  const rows = isAllClubsSelected()
     ? state.data.clubs
     : state.data.clubs.filter((row) => selectedClubNames().includes(row.club));
+  const order = window.DashboardLogic.CLUB_ORDER;
+  return [...rows].sort((a, b) => order.indexOf(a.club) - order.indexOf(b.club));
 }
 
 function visibleTotals() {
@@ -127,9 +141,7 @@ function renderSource() {
   };
   setText("#connectionStatus", statuses[state.connection]);
   setText("#sourceName", state.data.source || "Hapana Core Net Revenue Detail");
-  setText("#updatedAt", state.data.updated
-    ? `Prepared ${state.data.updated} | ${POS_APP_VERSION}`
-    : POS_APP_VERSION);
+  window.DashboardUI?.paintFreshness(state.data.updated, POS_APP_VERSION);
 }
 
 function renderMetrics() {
@@ -138,6 +150,7 @@ function renderMetrics() {
   setText("#foodAndBeverage", formatMoney(totals.foodAndBeverage || 0));
   setText("#merchandise", formatMoney(totals.merchandise || 0));
   setText("#fees", formatMoney(totals.fees || 0));
+  setText("#otherPos", formatMoney(totals.other || 0));
   setText("#transactionCount", number.format(totals.transactionCount || 0));
 }
 
@@ -176,9 +189,13 @@ function renderSummary() {
         <span><span class="mini-label">Food & Beverage</span><strong class="mini-value">${formatMoney(row.foodAndBeverage || 0)}</strong></span>
         <span><span class="mini-label">Merchandise</span><strong class="mini-value">${formatMoney(row.merchandise || 0)}</strong></span>
         <span><span class="mini-label">Fees</span><strong class="mini-value">${formatMoney(row.fees || 0)}</strong></span>
+        <span><span class="mini-label">Other POS</span><strong class="mini-value">${formatMoney(row.other || 0)}</strong></span>
       </div>
       <ol class="product-list">
-        ${topProducts(row).map((item) => `<li><strong>${escapeHtml(item.name)}</strong><span>${number.format(item.quantity)} sold | ${formatMoney(item.sales)}</span></li>`).join("")}
+        ${topProducts(row).map((item) => {
+          const display = window.DashboardLogic.productDisplay(item.name);
+          return `<li><strong>${escapeHtml(display.name)}</strong><span>${number.format(item.quantity)} txns | ${formatMoney(item.sales)} ex GST${display.joined ? " | joined name" : ""}</span></li>`;
+        }).join("")}
       </ol>
     </article>
   `).join("");
@@ -213,6 +230,22 @@ function render() {
   renderPeriod();
   renderSummary();
   renderDetail();
+  renderAttentionPanel();
+}
+
+function renderAttentionPanel() {
+  const rows = visibleClubs();
+  const items = [];
+  if (!rows.length) {
+    window.DashboardUI?.renderAttention([{ tone: "watch", text: "No POS rows are stored for this selection." }]);
+    return;
+  }
+  const totals = visibleTotals();
+  const parts = (totals.foodAndBeverage || 0) + (totals.merchandise || 0) + (totals.fees || 0) + (totals.other || 0);
+  items.push({ tone: "good", text: `Food & beverage, merchandise, fees and other POS add to ${formatMoney(parts)}, matching total POS of ${formatMoney(totals.totalSales || 0)}.` });
+  const lowest = [...rows].sort((a, b) => (a.totalSales || 0) - (b.totalSales || 0))[0];
+  if (rows.length > 1) items.push({ tone: "watch", text: `${lowest.club} has the lowest POS total at ${formatMoney(lowest.totalSales || 0)}.` });
+  window.DashboardUI?.renderAttention(items);
 }
 
 clubFilter.addEventListener("change", () => {
@@ -231,19 +264,16 @@ async function refreshPosMetrics() {
   button.disabled = true;
   const originalText = button.textContent;
   const clubs = isAllClubsSelected() ? CLUBS : selectedClubNames();
-  const rolling = rollingDateInputs();
-  const isRolling = posDateFrom.value === rolling.dateFrom && posDateTo.value === rolling.dateTo;
-
   try {
     const allFailures = [];
     for (const club of clubs) {
-      posRefreshStatus.textContent = `Updating ${club} ${isRolling ? "rolling 12 weeks" : "custom dates"} from Core Hapana...`;
-      const params = new URLSearchParams({ club });
-      if (!isRolling) {
-        params.set("date_from", toHapanaDate(posDateFrom.value));
-        params.set("date_to", toHapanaDate(posDateTo.value));
-      }
-      const response = await fetch(`/api/pos-metrics?${params.toString()}`, {
+      posRefreshStatus.textContent = `Updating ${club} for the dates shown from Core Hapana...`;
+      const params = new URLSearchParams({
+        club,
+        date_from: toHapanaDate(window.DashboardUI.readDateInput(posDateFrom)),
+        date_to: toHapanaDate(window.DashboardUI.readDateInput(posDateTo))
+      });
+      const response = await (window.DashboardUI?.fetch || fetch)(`/api/pos-metrics?${params.toString()}`, {
         headers: { "Accept": "application/json" }
       });
       const body = await response.json().catch(() => ({}));
@@ -261,6 +291,8 @@ async function refreshPosMetrics() {
     initControls();
     state.clubs = selected;
     applyClubSelection();
+    window.DashboardUI?.enhanceDateInputs(document);
+    window.DashboardUI?.refreshClubFilter(clubFilter);
     render();
     posRefreshStatus.textContent = allFailures.length
       ? `Finished with issues: ${allFailures.join(" | ")}`
@@ -304,7 +336,9 @@ function visiblePeriod() {
 
 function formatProduct(item) {
   if (!item) return "";
-  return `${escapeHtml(item.name)} (${number.format(item.quantity)} | ${formatMoney(item.sales)})`;
+  const display = window.DashboardLogic.productDisplay(item.name);
+  const joined = display.joined ? " Name looks like two products joined in the Hapana export; the amount was not split." : "";
+  return `${escapeHtml(display.name)} (${number.format(item.quantity)} txns | ${formatMoney(item.sales)} ex GST)${joined ? " Joined name." : ""}`;
 }
 
 function formatMoney(value) {
@@ -352,7 +386,8 @@ function round2(value) {
 }
 
 function setText(selector, value) {
-  document.querySelector(selector).textContent = value;
+  const node = document.querySelector(selector);
+  if (node) node.textContent = value;
 }
 
 function escapeHtml(value) {
@@ -377,10 +412,22 @@ function errorText(error) {
 }
 
 async function init() {
-  await loadPosData();
-  initControls();
-  render();
-  window.dashboardAuth?.ready?.then(logPosDashboardView);
+  try {
+    window.DashboardUI?.showStatus("Loading POS data…");
+    await window.dashboardAuth?.ready;
+    await loadPosData();
+    initControls();
+    window.DashboardUI?.enhanceDateInputs(document);
+    window.DashboardUI?.installClubFilter(clubFilter);
+    syncClubSelection();
+    render();
+    document.body.classList.remove("dashboard-pending");
+    window.DashboardUI?.hideStatus();
+    logPosDashboardView();
+  } catch (error) {
+    document.body.classList.remove("dashboard-pending");
+    window.DashboardUI?.showStatus(errorText(error), "error");
+  }
 }
 
 function logPosDashboardView() {

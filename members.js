@@ -1,11 +1,11 @@
 const MEMBER_APP_VERSION = "member-dashboard-mtd-v32-2026-10-23";
 const REFRESH_CLUBS = ["Bankstown", "Wetherill Park", "580G", "Woolooware"];
-const MEMBER_API_ORIGIN = ["localhost", "127.0.0.1"].includes(window.location.hostname)
-  ? "https://ufcgym-dashboard-june2026.vercel.app"
-  : "";
-
 function memberApiUrl(query) {
-  return `${MEMBER_API_ORIGIN}/api/member-metrics?${query}`;
+  return `/api/member-metrics?${query}`;
+}
+
+function apiFetch(url, options) {
+  return (window.DashboardUI?.fetch || fetch)(url, options);
 }
 
 const number = new Intl.NumberFormat("en-AU", { maximumFractionDigits: 0 });
@@ -45,7 +45,7 @@ function addDays(date, days) {
 }
 
 function formatDate(date) {
-  return dateFormat.format(date);
+  return dateFormat.format(date).replace(/Sept/g, "Sep");
 }
 
 function formatInputDate(date) {
@@ -66,7 +66,33 @@ function parseHapanaDate(value) {
 }
 
 function setText(selector, value) {
-  document.querySelector(selector).textContent = value;
+  const node = document.querySelector(selector);
+  if (node) node.textContent = value;
+}
+
+function profileNote(row) {
+  const packages = row.movement?.currentMonthToDate?.newSales || 0;
+  const profiles = currentMonthNewMemberships(row);
+  if (packages <= profiles + 2) return "";
+  return `<p class="note">${escapeHtml(row.club)} shows ${number.format(profiles)} new profiles and ${number.format(packages)} packages sold this month. New profiles use the member created date, so a package sold to someone who joined earlier is not counted as a new member.</p>`;
+}
+
+function renderAttentionPanel() {
+  const rows = visibleClubs();
+  const items = [];
+  if (document.querySelector("#updatedAt .stale-warning")) {
+    items.push({ tone: "bad", text: "Member data is more than 7 days old. The daily job refreshes one club at a time and only publishes when all four clubs succeed, so a failed Hapana export leaves the previous snapshot in place." });
+  }
+  const worst = [...rows].sort((a, b) => netMemberMovement(a) - netMemberMovement(b))[0];
+  if (worst && netMemberMovement(worst) < 0) {
+    items.push({ tone: "bad", text: `${worst.club} has the weakest NMM at ${formatSigned(netMemberMovement(worst))} (new profiles minus paid cancellations).` });
+  }
+  const cancels = [...rows].sort((a, b) => currentMonthCancellations(b) - currentMonthCancellations(a))[0];
+  if (cancels && currentMonthCancellations(cancels) > 0) {
+    items.push({ tone: "watch", text: `${cancels.club} has the most paid cancellations MTD (${number.format(currentMonthCancellations(cancels))}). Scheduled cancels for the whole month are a different count.` });
+  }
+  window.DashboardUI?.renderAttention(items);
+  window.DashboardUI?.bindDefinitions(document);
 }
 
 function escapeHtml(value) {
@@ -80,9 +106,11 @@ function escapeHtml(value) {
 }
 
 function visibleClubs() {
-  return isAllClubsSelected()
+  const rows = isAllClubsSelected()
     ? state.data.clubs
     : state.data.clubs.filter((row) => selectedClubNames().includes(row.club));
+  const order = window.DashboardLogic.CLUB_ORDER;
+  return [...rows].sort((a, b) => order.indexOf(a.club) - order.indexOf(b.club));
 }
 
 function visibleTotals() {
@@ -203,7 +231,7 @@ function sumDailyActive(current, next) {
 
 async function loadMemberData() {
   try {
-    const response = await fetch(memberApiUrl(`stored=1&_=${Date.now()}`), { headers: { "Accept": "application/json" } });
+    const response = await apiFetch(memberApiUrl(`stored=1&_=${Date.now()}`), { headers: { "Accept": "application/json" } });
     if (!response.ok) throw new Error(`Member metrics returned ${response.status}`);
     const payload = await response.json();
     if (!Array.isArray(payload.clubs)) throw new Error("Member metrics returned invalid club rows");
@@ -220,7 +248,7 @@ async function loadMemberData() {
 }
 
 function initControls() {
-  const clubs = ["All Clubs", ...state.data.clubs.map((row) => row.club)].filter(Boolean);
+  const clubs = window.DashboardLogic.orderClubs(["All Clubs", ...state.data.clubs.map((row) => row.club)].filter(Boolean));
   clubFilter.multiple = true;
   clubFilter.size = Math.min(5, clubs.length);
   clubFilter.innerHTML = clubs.map((club) => `<option value="${escapeHtml(club)}"${club === "All Clubs" ? " selected" : ""}>${escapeHtml(club)}</option>`).join("");
@@ -232,10 +260,19 @@ function initControls() {
   memberDateFrom.readOnly = true;
 }
 
+function readIso(input) {
+  return window.DashboardUI ? window.DashboardUI.readDateInput(input) : input.value;
+}
+
+function writeIso(input, iso) {
+  if (window.DashboardUI && input.dataset.auDate === "1") window.DashboardUI.setDateInput(input, iso);
+  else input.value = iso;
+}
+
 function syncMemberMonthStart() {
-  const end = parseDate(memberDateTo.value || formatInputDate(new Date()));
+  const end = parseDate(readIso(memberDateTo) || formatInputDate(new Date()));
   const start = new Date(end.getFullYear(), end.getMonth(), 1);
-  memberDateFrom.value = formatInputDate(start);
+  writeIso(memberDateFrom, formatInputDate(start));
 }
 
 function renderSource() {
@@ -247,9 +284,7 @@ function renderSource() {
   };
   setText("#connectionStatus", statuses[state.connection]);
   setText("#sourceName", state.data.source || "Hapana Core Membership Detail");
-  setText("#updatedAt", state.data.updated
-    ? `Prepared ${state.data.updated} | ${MEMBER_APP_VERSION}`
-    : MEMBER_APP_VERSION);
+  window.DashboardUI?.paintFreshness(state.data.updated, MEMBER_APP_VERSION);
 }
 
 function renderMetrics() {
@@ -328,8 +363,8 @@ function renderCancellationForecast() {
   const current = forecast.currentMonth || {};
   const next = forecast.nextMonth || {};
 
-  setText("#currentCancellationLabel", current.label ? `Current Month Cancellations (${current.label})` : "Current Month Cancellations");
-  setText("#nextCancellationLabel", next.label ? `Next Month Cancellations (${next.label})` : "Next Month Cancellations");
+  setText("#currentCancellationLabel", current.label ? `Scheduled cancels in ${current.label} (any cancel date in the month)` : "Scheduled cancels this month");
+  setText("#nextCancellationLabel", next.label ? `Scheduled cancels in ${next.label}` : "Scheduled cancels next month");
   setText("#currentMonthCancellations", number.format(current.cancellations || 0));
   setText("#nextMonthCancellations", number.format(next.cancellations || 0));
 }
@@ -367,11 +402,12 @@ function renderSummary() {
         <span><span class="mini-label">Total Active</span><strong class="mini-value">${number.format(row.activeMembers || 0)}</strong></span>
         <span><span class="mini-label">Standard</span><strong class="mini-value">${number.format(standardActive(row))}</strong></span>
         <span><span class="mini-label">Fitness Passport</span><strong class="mini-value">${number.format(row.fitnessPassportMembers || 0)}</strong></span>
-        <span><span class="mini-label">New Memberships MTD</span><strong class="mini-value">${number.format(currentMonthNewMemberships(row))}</strong></span>
-        <span><span class="mini-label">Paid Cancellations MTD</span><strong class="mini-value negative">${number.format(currentMonthCancellations(row))}</strong></span>
+        <span><span class="mini-label" data-define="new-profiles">New profiles MTD</span><strong class="mini-value">${number.format(currentMonthNewMemberships(row))}</strong></span>
+        <span><span class="mini-label" data-define="paid-cancellations">Paid cancellations MTD</span><strong class="mini-value negative">${number.format(currentMonthCancellations(row))}</strong></span>
         <span><span class="mini-label">Current Suspended</span><strong class="mini-value">${number.format(row.suspensions || 0)}</strong></span>
         <span><span class="mini-label">NMM MTD</span><strong class="mini-value ${movementClass(netMemberMovement(row))}">${formatSigned(netMemberMovement(row))}</strong></span>
       </div>
+      ${profileNote(row)}
       ${row.warning ? `<p class="note">${escapeHtml(row.warning)}</p>` : ""}
     </article>
   `).join("");
@@ -393,12 +429,16 @@ function renderDailyChart() {
   const pad = { top: 22, right: 28, bottom: 54, left: 72 };
   const plotWidth = width - pad.left - pad.right;
   const plotHeight = height - pad.top - pad.bottom;
-  const maxValue = Math.max(1, ...points.map((point) => point.active || 0));
-  const yStep = Math.max(10, Math.ceil(maxValue / 5 / 10) * 10);
-  const yMax = Math.max(yStep, Math.ceil(maxValue / yStep) * yStep);
+  const values = points.map((point) => point.active || 0);
+  const minValue = Math.min(...values);
+  const maxValue = Math.max(...values);
+  const padding = Math.max(8, Math.round((maxValue - minValue) * 0.25) || 20);
+  const yMin = Math.max(0, minValue - padding);
+  const yMax = maxValue + padding;
+  const yStep = Math.max(1, Math.round((yMax - yMin) / 4));
   const x = (index) => pad.left + (points.length === 1 ? plotWidth / 2 : (index / (points.length - 1)) * plotWidth);
-  const y = (value) => pad.top + plotHeight - (value / yMax) * plotHeight;
-  const yTicks = Array.from({ length: Math.floor(yMax / yStep) + 1 }, (_, index) => index * yStep);
+  const y = (value) => pad.top + plotHeight - ((value - yMin) / Math.max(1, yMax - yMin)) * plotHeight;
+  const yTicks = Array.from({ length: 5 }, (_, index) => Math.round(yMin + index * yStep));
 
   const grid = yTicks.map((tick) => `
     <line class="trend-grid" x1="${pad.left}" y1="${y(tick)}" x2="${width - pad.right}" y2="${y(tick)}"></line>
@@ -456,6 +496,7 @@ function render() {
   renderSummary();
   renderDailyChart();
   renderDetail();
+  renderAttentionPanel();
 }
 
 function switchView(view) {
@@ -498,12 +539,12 @@ async function refreshMemberMetrics() {
       memberRefreshStatus.textContent = `Updating ${club} (${index + 1} of ${REFRESH_CLUBS.length})...`;
       const params = new URLSearchParams({
         club,
-        date_from: toHapanaDate(memberDateFrom.value),
-        date_to: toHapanaDate(memberDateTo.value),
+        date_from: toHapanaDate(readIso(memberDateFrom)),
+        date_to: toHapanaDate(readIso(memberDateTo)),
         source: "core"
       });
       try {
-        const response = await fetch(memberApiUrl(params.toString()), {
+        const response = await apiFetch(memberApiUrl(params.toString()), {
           headers: { "Accept": "application/json" }
         });
         const body = await response.json().catch(() => ({}));
@@ -589,10 +630,22 @@ function errorText(error) {
 }
 
 async function init() {
-  await loadMemberData();
-  initControls();
-  render();
-  window.dashboardAuth?.ready?.then(logMemberDashboardView);
+  try {
+    window.DashboardUI?.showStatus("Loading member data…");
+    await window.dashboardAuth?.ready;
+    await loadMemberData();
+    initControls();
+    window.DashboardUI?.enhanceDateInputs(document);
+    window.DashboardUI?.installClubFilter(clubFilter);
+    syncClubSelection();
+    render();
+    document.body.classList.remove("dashboard-pending");
+    window.DashboardUI?.hideStatus();
+    logMemberDashboardView();
+  } catch (error) {
+    document.body.classList.remove("dashboard-pending");
+    window.DashboardUI?.showStatus(errorText(error), "error");
+  }
 }
 
 init();
