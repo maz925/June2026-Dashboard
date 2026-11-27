@@ -3,6 +3,7 @@ const {
   downloadCoreAdvancedReportCsv,
   downloadCoreReportCsv
 } = require("./core-report.js");
+const { authoriseRead, authoriseMutation } = require("./access");
 
 const FITNESS_METRICS_VERSION = "fitness-metrics-hapana-v6-2026-09-29";
 const STORAGE_PATH = "fitness-metrics.json";
@@ -79,11 +80,12 @@ module.exports = async function handler(request, response) {
   try {
     const url = new URL(request.url, `https://${request.headers.host || "localhost"}`);
     if (url.searchParams.get("stored") === "1") {
+      if (!(await authoriseRead(request, response))) return;
       response.status(200).json(await loadStoredFitnessMetrics());
       return;
     }
 
-    assertCronAccess(request);
+    if (!(await authoriseMutation(request, response))) return;
 
     const window = await fitnessWindow(url.searchParams);
     const targetLocations = locationsForRequest(url.searchParams);
@@ -688,7 +690,7 @@ function displayDate(date) {
     month: "short",
     year: "numeric",
     timeZone: "UTC"
-  }).format(date);
+  }).format(date).replace(/Sept/g, "Sep");
 }
 
 function addDays(date, days) {

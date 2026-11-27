@@ -1,10 +1,19 @@
-window.HAPANA_PROXY_URL ||= window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
-  ? ""
-  : "/api/hapana";
+window.HAPANA_PROXY_URL ||= "/api/hapana";
 
 const APP_VERSION = "dashboard-live-revenue-weeks-v2-2026-08-27";
 
-let data = window.TRACKER_DATA;
+let data = emptyWorkbook();
+
+function emptyWorkbook() {
+  return {
+    source: "",
+    updated: null,
+    rolling: [],
+    targets: [],
+    dynamicTargets: [],
+    latest: []
+  };
+}
 
 const money = new Intl.NumberFormat("en-AU", {
   style: "currency",
@@ -26,7 +35,9 @@ const state = {
   clubs: ["All Clubs"],
   view: "overview",
   connection: "workbook",
-  customRevenueWeekEnding: null
+  customRevenueWeekEnding: null,
+  trendMode: "both",
+  historySort: { key: "week", dir: "desc" }
 };
 
 const clubFilter = document.querySelector("#clubFilter");
@@ -62,7 +73,19 @@ function addDays(date, days) {
 }
 
 function formatDate(date) {
-  return dateFormat.format(date);
+  return dateFormat.format(date).replace(/Sept/g, "Sep");
+}
+
+const rangeFormat = new Intl.DateTimeFormat("en-AU", {
+  day: "numeric",
+  month: "short",
+  year: "numeric"
+});
+
+function formatRange(start, end) {
+  const left = rangeFormat.format(start).replace(/Sept/g, "Sep");
+  const right = rangeFormat.format(end).replace(/Sept/g, "Sep");
+  return left.slice(-4) === right.slice(-4) ? `${left.replace(/ \d{4}$/, "")} to ${right}` : `${left} to ${right}`;
 }
 
 function formatInputDate(date) {
@@ -89,7 +112,7 @@ function reportingCycle(weekEnding) {
   const availableUntil = addDays(end, 10);
 
   return {
-    period: `${formatDate(start)} to ${formatDate(end)}`,
+    period: formatRange(start, end),
     availableFrom,
     availableFromText: formatDate(availableFrom),
     availableWindow: `${formatDate(availableFrom)} to ${formatDate(availableUntil)}`,
@@ -100,7 +123,7 @@ function reportingCycle(weekEnding) {
 function rowPeriod(row) {
   if (row?.dateFrom && row?.dateTo && isCompleteRevenueWeek(row)) {
     return {
-      period: `${formatDate(parseHapanaDate(row.dateFrom))} to ${formatDate(parseHapanaDate(row.dateTo))}`,
+      period: formatRange(parseHapanaDate(row.dateFrom), parseHapanaDate(row.dateTo)),
       availableFromText: "Live from Hapana",
       availableWindow: "Live Hapana data is available now",
       isLive: true
@@ -110,7 +133,7 @@ function rowPeriod(row) {
     const end = parseDate(row.weekEnding);
     const start = addDays(end, -6);
     return {
-      period: `${formatDate(start)} to ${formatDate(end)}`,
+      period: formatRange(start, end),
       availableFromText: "Workbook row",
       availableWindow: "Stored workbook data is available now",
       isLive: true
@@ -192,7 +215,9 @@ function rowsForWeeks(weekEndings, { completeOnly = false } = {}) {
 
 function visible(rows) {
   const clubs = selectedClubNames();
-  return isAllClubsSelected() ? rows : rows.filter((row) => clubs.includes(row.club));
+  const filtered = isAllClubsSelected() ? rows : rows.filter((row) => clubs.includes(row.club));
+  const order = window.DashboardLogic.CLUB_ORDER;
+  return [...filtered].sort((a, b) => (order.indexOf(a.club) + 1 || 99) - (order.indexOf(b.club) + 1 || 99));
 }
 
 function isAllClubsSelected() {
@@ -251,8 +276,8 @@ function hasRevenue(row) {
 }
 
 function enrichRollingRows(rows) {
-  const fixedByClub = Object.fromEntries(data.targets.map((row) => [row.club, row]));
-  const dynamicByClub = Object.fromEntries(data.dynamicTargets.map((row) => [row.club, row]));
+  const fixedByClub = Object.fromEntries((data.targets || []).map((row) => [row.club, row]));
+  const dynamicByClub = Object.fromEntries((data.dynamicTargets || []).map((row) => [row.club, row]));
 
   return rows.map((row) => {
     const fixed = fixedByClub[row.club] || {};
@@ -295,7 +320,8 @@ function gapDisplayClass(row) {
 }
 
 function setText(selector, value) {
-  document.querySelector(selector).textContent = value;
+  const node = document.querySelector(selector);
+  if (node) node.textContent = value;
 }
 
 function escapeHtml(value) {
@@ -320,14 +346,25 @@ function errorText(error) {
 }
 
 async function loadLiveData() {
+  const fetchImpl = window.DashboardUI?.fetch || window.dashboardAuth?.fetch || fetch;
+  try {
+    const workbookResponse = await fetchImpl("/api/workbook", { headers: { "Accept": "application/json" } });
+    if (workbookResponse.ok) {
+      const workbook = await workbookResponse.json();
+      if (Array.isArray(workbook.rolling)) data = { ...emptyWorkbook(), ...workbook };
+    }
+  } catch (error) {
+    console.warn("Workbook fallback could not load.", error);
+  }
+
   const proxyUrl = window.HAPANA_PROXY_URL || "";
   if (!proxyUrl) {
-    state.connection = "workbook";
+    state.connection = data.rolling.length ? "workbook" : "fallback";
     return;
   }
 
   try {
-    const response = await fetch(proxyUrl, { headers: { "Accept": "application/json" } });
+    const response = await fetchImpl(proxyUrl, { headers: { "Accept": "application/json" } });
     if (!response.ok) throw new Error(`Hapana proxy returned ${response.status}`);
 
     const liveData = await response.json();
@@ -389,8 +426,8 @@ async function updateRevenueRange() {
 
   button.disabled = true;
   button.textContent = "Updating...";
-  const dateFrom = toHapanaDate(revenueDateFrom.value);
-  const dateTo = toHapanaDate(revenueDateTo.value);
+  const dateFrom = toHapanaDate(readDate(revenueDateFrom));
+  const dateTo = toHapanaDate(readDate(revenueDateTo));
   revenueRangeStatus.textContent = `Updating ${club} from Core Hapana...`;
 
   try {
@@ -435,7 +472,7 @@ async function fetchRevenueRange(params) {
   const timeout = setTimeout(() => controller.abort(), 295000);
 
   try {
-    const response = await fetch(`/api/weekly-revenue?${params.toString()}`, {
+    const response = await (window.DashboardUI?.fetch || fetch)(`/api/weekly-revenue?${params.toString()}`, {
       headers: { "Accept": "application/json" },
       signal: controller.signal
     });
@@ -468,10 +505,17 @@ function renderMetrics() {
   const totalRevenue = totalDD + totalPOS;
   const avgPOS = totalDD ? (totalPOS / totalDD) * 100 : 0;
 
+  const periodName = {
+    overview: "4-week actual",
+    latest: "Latest week actual",
+    history: "12-week actual",
+    targets: "Target, not actual"
+  }[state.view] || "Actual";
   document.querySelector("#totalDD").previousElementSibling.textContent = isTargetView ? "Target DD" : "Total DD";
   document.querySelector("#totalPOS").previousElementSibling.textContent = isTargetView ? "Target POS" : "Total POS";
-  document.querySelector("#totalRevenue").previousElementSibling.textContent = isTargetView ? "Target Revenue" : "Total Revenue";
+  document.querySelector("#totalRevenue").previousElementSibling.textContent = isTargetView ? "Target revenue" : "Total revenue";
   document.querySelector("#avgPOS").previousElementSibling.textContent = isTargetView ? "Target POS %" : "Avg POS %";
+  document.querySelector("#metricPeriod")?.replaceChildren(document.createTextNode(periodName));
 
   setText("#totalDD", isTargetView || hasAnyRevenue ? formatMoney(totalDD) : "Not entered");
   setText("#totalPOS", isTargetView || hasAnyRevenue ? formatMoney(totalPOS) : "Not entered");
@@ -524,46 +568,70 @@ function renderSummary() {
         <span><span class="mini-label">Total DD</span><strong class="mini-value">${formatMoney(totalDD)}</strong></span>
         <span><span class="mini-label">Total POS</span><strong class="mini-value">${formatMoney(totalPOS)}</strong></span>
         <span><span class="mini-label">POS %</span><strong class="mini-value">${formatPercent(posPercent)}</strong></span>
-        <span><span class="mini-label">DD Gap</span><strong class="mini-value ${gapClass(ddGap)}">${formatMoney(ddGap)}</strong></span>
+        <span><span class="mini-label">DD Gap vs Realistic</span><strong class="mini-value ${gapClass(ddGap)}">${formatMoney(ddGap)}</strong></span>
       </div>
     </article>
     `;
   }).join("");
 }
 
+function performanceFor(row) {
+  const dynamic = (data.dynamicTargets || []).find((item) => item.club === row.club) || {};
+  return window.DashboardLogic.assessPerformance({
+    ...row,
+    stretchPOSPercent: dynamic.stretchPOSPercentTarget
+  });
+}
+
+function performanceMessage(row, assessment) {
+  if (!hasRevenue(row)) return "Revenue has not been entered for this reportable week yet.";
+  if (assessment.status === "GREEN") {
+    return assessment.aboveStretch
+      ? `On track against Realistic DD and the Realistic POS target of ${formatPercent(row.targetPercent)}. POS % ${formatPercent(row.posPercent)} is also above the stretch POS target.`
+      : `On track: DD is at or above Realistic DD and POS % is at or above the Realistic POS target of ${formatPercent(row.targetPercent)}.`;
+  }
+  const parts = [];
+  if (assessment.missed.includes("DD")) {
+    parts.push(`DD missed Realistic DD (${formatMoney(row.ddActual)} vs ${formatMoney(row.ddTarget)}, gap ${formatGap(row)})`);
+  }
+  if (assessment.missed.includes("POS")) {
+    parts.push(`POS % ${formatPercent(row.posPercent)} missed the Realistic POS target of ${formatPercent(row.targetPercent)}`);
+  }
+  return parts.length ? `${parts.join(". ")}.` : "Red status, but the missed target could not be identified.";
+}
+
 function renderLatest() {
   const latest = visible(reportableRows());
-  const dynamicByClub = Object.fromEntries(data.dynamicTargets.map((row) => [row.club, row]));
   const container = document.querySelector("#latestGrid");
 
   container.innerHTML = latest.map((row) => {
-    const target = dynamicByClub[row.club];
+    const assessment = performanceFor(row);
     const progress = Math.max(0, Math.min(100, row.targetPercent ? (row.posPercent / row.targetPercent) * 100 : 0));
     const cycle = rowPeriod(row);
     return `
       <article class="latest-card">
         <div class="card-head">
-          <span class="club-name">${row.club}</span>
-          <span class="status ${statusClass(row.status)}">${statusText(row.status)}</span>
+          <span class="club-name">${escapeHtml(row.club)}</span>
+          <span class="status ${statusClass(assessment.status)}">${escapeHtml(assessment.badge)}</span>
         </div>
         <div class="mini-grid">
-          <span><span class="mini-label">Revenue Period</span><strong class="mini-value">${cycle.period}</strong></span>
-          <span><span class="mini-label">Reportable From</span><strong class="mini-value">${cycle.availableFromText}</strong></span>
+          <span><span class="mini-label">Revenue Period</span><strong class="mini-value">${escapeHtml(cycle.period)}</strong></span>
+          <span><span class="mini-label">Reportable From</span><strong class="mini-value">${escapeHtml(cycle.availableFromText)}</strong></span>
           <span><span class="mini-label">DD Actual</span><strong class="mini-value">${formatMoney(row.ddActual)}</strong></span>
-          <span><span class="mini-label">DD Gap</span><strong class="mini-value ${gapDisplayClass(row)}">${formatGap(row)}</strong></span>
+          <span><span class="mini-label">DD Gap vs Realistic</span><strong class="mini-value ${gapDisplayClass(row)}">${formatGap(row)}</strong></span>
           <span><span class="mini-label">POS Actual</span><strong class="mini-value">${formatMoney(row.posActual)}</strong></span>
-          <span><span class="mini-label">POS %</span><strong class="mini-value">${formatPercent(row.posPercent)}</strong></span>
+          <span><span class="mini-label">POS % vs Realistic</span><strong class="mini-value">${formatPercent(row.posPercent)}</strong></span>
         </div>
-        <div class="progress" aria-label="POS progress to target"><span style="width:${progress}%"></span></div>
-        <p class="note">${hasRevenue(row) && target ? target.targetNote : "Revenue has not been entered for this reportable week yet."}</p>
+        <div class="progress" aria-label="POS progress to the Realistic POS target"><span style="width:${progress}%"></span></div>
+        <p class="note">${escapeHtml(performanceMessage(row, assessment))}</p>
       </article>
     `;
   }).join("");
 }
 
 function renderTargets() {
-  const fixedByClub = Object.fromEntries(data.targets.map((row) => [row.club, row]));
-  const rows = visible(data.dynamicTargets);
+  const fixedByClub = Object.fromEntries((data.targets || []).map((row) => [row.club, row]));
+  const rows = visible(data.dynamicTargets || []);
   const container = document.querySelector("#targetGrid");
 
   container.innerHTML = rows.map((row) => {
@@ -582,10 +650,21 @@ function renderTargets() {
           <span><span class="mini-label">Realistic POS</span><strong class="mini-value">${formatPercent(row.realisticPOSPercentTarget)}</strong></span>
           <span><span class="mini-label">Stretch POS</span><strong class="mini-value">${formatPercent(row.stretchPOSPercentTarget)}</strong></span>
         </div>
-        <p class="note">${row.targetNote}</p>
+        <p class="note">${escapeHtml(targetCardNote(row, fixed))}</p>
       </article>
     `;
   }).join("");
+}
+
+function targetCardNote(row, fixed) {
+  const parts = [
+    `These are targets, not actuals. DD gap and red/green status compare actuals with Realistic DD (${formatMoney(row.realisticDDTarget)}) and Realistic POS % (${formatPercent(row.realisticPOSPercentTarget)}).`,
+    `Stretch POS % is ${formatPercent(row.stretchPOSPercentTarget)}.`
+  ];
+  if (window.DashboardLogic.stretchBelowBaseline(row, fixed)) {
+    parts.push(`Stretch DD ${formatMoney(row.stretchDDTarget)} is below the baseline DD of ${formatMoney(fixed.ddTarget)}. Stored targets were not changed.`);
+  }
+  return parts.join(" ");
 }
 
 function renderRevenueTrend() {
@@ -612,6 +691,7 @@ function renderRevenueTrend() {
 
   const series = chartClubs.map((club) => ({
     club,
+    total: club === "All Clubs" || club === "Selected Clubs",
     color: colors[club] || "#667085",
     values: weeks.map((weekEnding) => {
       const weekRows = allRows.filter((row) => row.weekEnding === weekEnding);
@@ -622,48 +702,72 @@ function renderRevenueTrend() {
           : weekRows.filter((row) => row.club === club);
       return rows.reduce((sum, row) => sum + totalRevenue(row), 0);
     })
-  })).filter((item) => item.club === "All Clubs" || item.values.some((value) => value > 0));
+  })).filter((item) => item.total || item.values.some((value) => value > 0));
+  const shown = series.filter((item) => {
+    if (state.trendMode === "total") return item.total;
+    if (state.trendMode === "clubs") return !item.total;
+    return true;
+  });
+  const totalSeries = shown.filter((item) => item.total);
+  const clubSeries = shown.filter((item) => !item.total);
+  const splitAxis = state.trendMode === "both" && totalSeries.length && clubSeries.length;
 
   const width = 980;
-  const height = 320;
-  const pad = { top: 22, right: 28, bottom: 54, left: 82 };
+  const height = 360;
+  const pad = { top: 22, right: splitAxis ? 78 : 28, bottom: 72, left: 82 };
   const plotWidth = width - pad.left - pad.right;
   const plotHeight = height - pad.top - pad.bottom;
-  const maxValue = Math.max(1, ...series.flatMap((item) => item.values));
-  const yStep = 5000;
-  const yMax = Math.max(yStep, Math.ceil(maxValue / yStep) * yStep);
+  const maxOf = (items) => Math.max(1, ...items.flatMap((item) => item.values));
+  const stepFor = (maxValue) => maxValue > 100000 ? 20000 : 5000;
+  const leftMaxValue = maxOf(splitAxis ? totalSeries : shown);
+  const rightMaxValue = splitAxis ? maxOf(clubSeries) : leftMaxValue;
+  const leftStep = stepFor(leftMaxValue);
+  const rightStep = stepFor(rightMaxValue);
+  const leftMax = Math.max(leftStep, Math.ceil(leftMaxValue / leftStep) * leftStep);
+  const rightMax = Math.max(rightStep, Math.ceil(rightMaxValue / rightStep) * rightStep);
   const x = (index) => pad.left + (weeks.length === 1 ? plotWidth / 2 : (index / (weeks.length - 1)) * plotWidth);
-  const y = (value) => pad.top + plotHeight - (value / yMax) * plotHeight;
-  const yTicks = Array.from({ length: Math.floor(yMax / yStep) + 1 }, (_, index) => index * yStep);
+  const yFor = (value, max) => pad.top + plotHeight - (value / max) * plotHeight;
+  const leftTicks = Array.from({ length: Math.floor(leftMax / leftStep) + 1 }, (_, index) => index * leftStep);
+  const rightTicks = Array.from({ length: Math.floor(rightMax / rightStep) + 1 }, (_, index) => index * rightStep);
 
-  const grid = yTicks.map((tick) => `
-    <line class="trend-grid" x1="${pad.left}" y1="${y(tick)}" x2="${width - pad.right}" y2="${y(tick)}"></line>
-    <text class="trend-label" x="${pad.left - 12}" y="${y(tick) + 4}" text-anchor="end">${formatMoney(tick)}</text>
-  `).join("");
+  const grid = leftTicks.map((tick) => `
+    <line class="trend-grid" x1="${pad.left}" y1="${yFor(tick, leftMax)}" x2="${width - pad.right}" y2="${yFor(tick, leftMax)}"></line>
+    <text class="trend-label" x="${pad.left - 12}" y="${yFor(tick, leftMax) + 4}" text-anchor="end">${formatMoney(tick)}</text>
+  `).join("") + (splitAxis ? rightTicks.map((tick) => `
+    <text class="trend-label" x="${width - pad.right + 12}" y="${yFor(tick, rightMax) + 4}">${formatMoney(tick)}</text>
+  `).join("") : "");
 
   const xLabels = weeks.map((weekEnding, index) => `
-    <text class="trend-label" x="${x(index)}" y="${height - 20}" text-anchor="middle">${formatDate(parseDate(weekEnding)).replace(/^[A-Za-z]{3},\s*/, "")}</text>
+    <text class="trend-label" x="${x(index)}" y="${height - 46}" text-anchor="end" transform="rotate(-40 ${x(index)} ${height - 46})">${formatDate(parseDate(weekEnding)).replace(/^[A-Za-z]{3},\s*/, "")}</text>
   `).join("");
 
-  const paths = series.map((item) => {
-    const points = item.values.map((value, index) => `${x(index)},${y(value)}`);
+  const paths = shown.map((item) => {
+    const max = splitAxis && !item.total ? rightMax : leftMax;
+    const points = item.values.map((value, index) => `${x(index)},${yFor(value, max)}`);
     const path = points.map((point, index) => `${index === 0 ? "M" : "L"} ${point}`).join(" ");
-    const dots = item.values.map((value, index) => `
-      <circle class="trend-dot" cx="${x(index)}" cy="${y(value)}" r="${item.club === "All Clubs" ? 4.5 : 3.6}" fill="${item.color}">
-        <title>${escapeHtml(item.club)} ${formatDate(parseDate(weeks[index]))}: ${formatMoney(value)}</title>
-      </circle>
-    `).join("");
-    return `
-      <path class="trend-line" d="${path}" stroke="${item.color}"></path>
-      ${dots}
-    `;
+    const dots = item.values.map((value, index) => {
+      const sample = allRows.find((row) => row.weekEnding === weeks[index]);
+      const range = sample ? rowPeriod(sample).period : formatDate(parseDate(weeks[index]));
+      const tip = `${item.club}: ${range}. Revenue ${formatMoney(value)}.`;
+      return `
+      <circle class="trend-dot" data-tip="${escapeHtml(tip)}" cx="${x(index)}" cy="${yFor(value, max)}" r="${item.total ? 4.8 : 3.8}" fill="${item.color}">
+        <title>${escapeHtml(tip)}</title>
+      </circle>`;
+    }).join("");
+    return `<path class="trend-line" d="${path}" stroke="${item.color}"></path>${dots}`;
   }).join("");
 
-  const legend = series.map((item) => `
-    <span><i class="trend-swatch" style="background:${item.color}"></i>${escapeHtml(item.club)}</span>
+  const legend = shown.map((item) => `
+    <span><i class="trend-swatch" style="background:${item.color}"></i>${escapeHtml(item.club)}${splitAxis && !item.total ? " (right axis)" : ""}</span>
   `).join("");
+  const modes = [
+    ["both", "Total and clubs"],
+    ["total", "Total only"],
+    ["clubs", "Clubs only"]
+  ].map(([mode, label]) => `<button type="button" class="trend-toggle${state.trendMode === mode ? " is-on" : ""}" data-trend="${mode}">${label}</button>`).join("");
 
   container.innerHTML = `
+    <div class="trend-toolbar">${modes}<span class="trend-axis-note">${splitAxis ? "Left axis is the combined total. Right axis is each club, so club lines stay readable." : "One axis for the lines on this chart."}</span></div>
     <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="12 week total revenue line graph">
       ${grid}
       <line class="trend-axis" x1="${pad.left}" y1="${height - pad.bottom}" x2="${width - pad.right}" y2="${height - pad.bottom}"></line>
@@ -671,28 +775,107 @@ function renderRevenueTrend() {
       ${xLabels}
       ${paths}
     </svg>
+    <p class="chart-tooltip" hidden></p>
     <div class="trend-legend">${legend}</div>
   `;
+  container.querySelectorAll("[data-trend]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.trendMode = button.dataset.trend;
+      renderRevenueTrend();
+    });
+  });
+  const tip = container.querySelector(".chart-tooltip");
+  container.querySelectorAll(".trend-dot").forEach((dot) => {
+    dot.addEventListener("mouseenter", () => {
+      tip.hidden = false;
+      tip.textContent = dot.dataset.tip;
+    });
+    dot.addEventListener("mouseleave", () => {
+      tip.hidden = true;
+    });
+  });
+}
+
+function historyHeader(key, label) {
+  const active = state.historySort.key === key;
+  const arrow = active ? (state.historySort.dir === "asc" ? " ↑" : " ↓") : "";
+  return `<th><button type="button" data-sort="${key}">${label}${arrow}</button></th>`;
 }
 
 function renderHistory() {
   renderRevenueTrend();
-  const rows = visible(rowsForWeeks(availableWeekEndings().slice(0, 12), { completeOnly: true })).sort((a, b) => b.weekEnding.localeCompare(a.weekEnding) || a.club.localeCompare(b.club));
+  const rows = visible(rowsForWeeks(availableWeekEndings().slice(0, 12), { completeOnly: true }));
   const body = document.querySelector("#historyBody");
-  body.innerHTML = rows.map((row) => {
-    const cycle = rowPeriod(row);
-    return `
-      <tr>
-        <td>${cycle.period}</td>
-        <td>${cycle.availableFromText}</td>
-        <td>${row.club}</td>
-        <td>${formatMoney(row.ddActual)}</td>
-        <td class="${gapDisplayClass(row)}">${formatGap(row)}</td>
-        <td>${formatMoney(row.posActual)}</td>
-        <td>${formatPercent(row.posPercent)}</td>
-        <td><span class="status ${statusClass(row.status)}">${statusText(row.status)}</span></td>
-      </tr>
-    `;
+  const head = body?.closest("table")?.querySelector("thead");
+  if (head) {
+    head.innerHTML = `<tr>
+      ${historyHeader("week", "Week")}
+      ${historyHeader("available", "Reportable from")}
+      ${historyHeader("club", "Club")}
+      ${historyHeader("dd", "DD actual")}
+      ${historyHeader("gap", "DD gap vs Realistic")}
+      ${historyHeader("pos", "POS actual")}
+      ${historyHeader("percent", "POS %")}
+      ${historyHeader("status", "Status")}
+    </tr>`;
+    head.querySelectorAll("button").forEach((button) => {
+      button.addEventListener("click", () => {
+        const key = button.dataset.sort;
+        state.historySort = {
+          key,
+          dir: state.historySort.key === key && state.historySort.dir === "desc" ? "asc" : "desc"
+        };
+        renderHistory();
+      });
+    });
+  }
+  const direction = state.historySort.dir === "asc" ? 1 : -1;
+  const weekValue = (group) => {
+    const dd = group.reduce((sum, row) => sum + (row.ddActual || 0), 0);
+    const pos = group.reduce((sum, row) => sum + (row.posActual || 0), 0);
+    const gap = group.reduce((sum, row) => sum + (hasRevenue(row) ? row.ddGap || 0 : 0), 0);
+    return {
+      week: group[0].weekEnding,
+      available: group[0].weekEnding,
+      club: group[0].club,
+      dd,
+      gap,
+      pos,
+      percent: dd ? pos / dd * 100 : 0,
+      status: group.filter((row) => performanceFor(row).status === "RED").length
+    }[state.historySort.key];
+  };
+  const groups = [...rows.reduce((map, row) => {
+    const list = map.get(row.weekEnding) || [];
+    list.push(row);
+    map.set(row.weekEnding, list);
+    return map;
+  }, new Map()).values()].sort((a, b) => {
+    const left = weekValue(a);
+    const right = weekValue(b);
+    return (left > right ? 1 : left < right ? -1 : 0) * direction;
+  });
+  body.innerHTML = groups.map((group) => {
+    const ordered = [...group].sort((a, b) => window.DashboardLogic.CLUB_ORDER.indexOf(a.club) - window.DashboardLogic.CLUB_ORDER.indexOf(b.club));
+    const lines = ordered.map((row) => {
+      const cycle = rowPeriod(row);
+      const assessment = performanceFor(row);
+      return `
+        <tr>
+          <td>${escapeHtml(cycle.period)}</td>
+          <td>${escapeHtml(cycle.availableFromText)}</td>
+          <td>${escapeHtml(row.club)}</td>
+          <td>${formatMoney(row.ddActual)}</td>
+          <td class="${gapDisplayClass(row)}">${formatGap(row)}</td>
+          <td>${formatMoney(row.posActual)}</td>
+          <td>${formatPercent(row.posPercent)}</td>
+          <td><span class="status ${statusClass(assessment.status)}">${escapeHtml(assessment.badge)}</span></td>
+        </tr>`;
+    }).join("");
+    const totalDD = group.reduce((sum, row) => sum + (row.ddActual || 0), 0);
+    const totalPOS = group.reduce((sum, row) => sum + (row.posActual || 0), 0);
+    const gap = group.reduce((sum, row) => sum + (hasRevenue(row) ? row.ddGap || 0 : 0), 0);
+    return `${lines}<tr class="week-total"><td>${escapeHtml(rowPeriod(group[0]).period)}</td><td></td><td>Week total</td><td>${formatMoney(totalDD)}</td><td class="${gapClass(gap)}">${formatMoney(gap)}</td><td>${formatMoney(totalPOS)}</td><td>${formatPercent(totalDD ? totalPOS / totalDD * 100 : null)}</td><td></td></tr>`;
   }).join("");
 }
 
@@ -761,6 +944,28 @@ function render() {
   renderLatest();
   renderTargets();
   renderHistory();
+  renderAttentionPanel();
+}
+
+function renderAttentionPanel() {
+  const latest = visible(reportableRows()).filter(hasRevenue);
+  const items = [];
+  const misses = latest.map((row) => ({ row, assessment: performanceFor(row) })).filter((item) => item.assessment.status === "RED");
+  if (misses.length) {
+    const worst = [...misses].sort((a, b) => (a.row.ddGap || 0) - (b.row.ddGap || 0))[0];
+    const detail = misses.map((item) => `${item.row.club} missed ${item.assessment.missed.join(" and ") || "a target"}`).join("; ");
+    items.push({ tone: "bad", text: `${detail}. Largest Realistic DD gap is ${worst.row.club} ${formatGap(worst.row)}.` });
+  } else if (latest.length) {
+    items.push({ tone: "good", text: "Latest week: every selected club is on track against Realistic DD and Realistic POS %." });
+  }
+  for (const dynamic of data.dynamicTargets || []) {
+    const fixed = (data.targets || []).find((row) => row.club === dynamic.club);
+    if (!fixed || ( !isAllClubsSelected() && !selectedClubNames().includes(dynamic.club))) continue;
+    if (window.DashboardLogic.stretchBelowBaseline(dynamic, fixed)) {
+      items.push({ tone: "watch", text: `${dynamic.club} stretch DD ${formatMoney(dynamic.stretchDDTarget)} is below baseline DD ${formatMoney(fixed.ddTarget)}. Stored targets were not changed.` });
+    }
+  }
+  window.DashboardUI?.renderAttention(items);
 }
 
 function switchView(view) {
@@ -776,11 +981,11 @@ function switchView(view) {
 }
 
 function initControls() {
-  const clubs = ["All Clubs", ...new Set([
+  const clubs = window.DashboardLogic.orderClubs(["All Clubs", ...new Set([
     ...data.rolling.map((row) => row.club),
-    ...data.targets.map((row) => row.club),
-    ...data.dynamicTargets.map((row) => row.club)
-  ])].filter(Boolean);
+    ...(data.targets || []).map((row) => row.club),
+    ...(data.dynamicTargets || []).map((row) => row.club)
+  ])].filter(Boolean));
   clubFilter.multiple = true;
   clubFilter.size = Math.min(5, clubs.length);
   clubFilter.innerHTML = clubs.map((club) => `<option value="${escapeHtml(club)}"${club === "All Clubs" ? " selected" : ""}>${escapeHtml(club)}</option>`).join("");
@@ -803,8 +1008,8 @@ function renderSource() {
   }[state.connection];
 
   setText("#connectionStatus", status);
-  setText("#sourceName", data.source);
-  setText("#updatedAt", `Prepared ${data.updated} | ${APP_VERSION}`);
+  setText("#sourceName", data.source || "Hapana");
+  window.DashboardUI?.paintFreshness(data.updated, APP_VERSION);
 }
 
 clubFilter.addEventListener("change", () => {
@@ -821,6 +1026,7 @@ customiseRevenueButton.addEventListener("click", () => {
   const shouldOpen = customRevenuePanel.hidden;
   customRevenuePanel.hidden = !shouldOpen;
   customiseRevenueButton.setAttribute("aria-expanded", String(shouldOpen));
+  if (shouldOpen) applyViewDateDefaults();
 });
 
 revenueRangeForm.addEventListener("submit", (event) => {
@@ -828,22 +1034,63 @@ revenueRangeForm.addEventListener("submit", (event) => {
   updateRevenueRange();
 });
 
-reportDownloadForm.addEventListener("submit", (event) => {
+reportDownloadForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const params = new URLSearchParams({
     location: reportLocation.value,
-    date_from: toHapanaDate(reportDateFrom.value),
-    date_to: toHapanaDate(reportDateTo.value)
+    date_from: toHapanaDate(readDate(reportDateFrom)),
+    date_to: toHapanaDate(readDate(reportDateTo))
   });
-  window.open(`/api/core-report?${params.toString()}`, "_blank", "noopener");
+  try {
+    const response = await (window.DashboardUI?.fetch || fetch)(`/api/core-report?${params.toString()}`);
+    if (!response.ok) throw new Error(`Download failed (${response.status}). Sign in and try again.`);
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `net-revenue-${reportLocation.value}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    revenueRangeStatus.textContent = errorText(error);
+  }
 });
 
+function readDate(input) {
+  return window.DashboardUI ? window.DashboardUI.readDateInput(input) : input.value;
+}
+
+function applyViewDateDefaults() {
+  const count = state.view === "latest" ? 1 : state.view === "history" ? 12 : 4;
+  const weeks = availableWeekEndings().slice(0, count);
+  if (!weeks.length) return;
+  const end = parseDate(weeks[0]);
+  const start = addDays(parseDate(weeks[weeks.length - 1]), -6);
+  window.DashboardUI?.setDateInput(revenueDateFrom, formatInputDate(start));
+  window.DashboardUI?.setDateInput(revenueDateTo, formatInputDate(end));
+}
+
 async function init() {
-  await loadLiveData();
-  initControls();
-  renderSource();
-  render();
-  window.dashboardAuth?.ready?.then(logDashboardView);
+  try {
+    window.DashboardUI?.showStatus("Loading financial data…");
+    await window.dashboardAuth?.ready;
+    await loadLiveData();
+    initControls();
+    window.DashboardUI?.enhanceDateInputs(document);
+    applyViewDateDefaults();
+    window.DashboardUI?.installClubFilter(clubFilter);
+    syncClubSelection();
+    renderSource();
+    render();
+    document.body.classList.remove("dashboard-pending");
+    window.DashboardUI?.hideStatus();
+    logDashboardView();
+  } catch (error) {
+    document.body.classList.remove("dashboard-pending");
+    window.DashboardUI?.showStatus(errorText(error), "error");
+  }
 }
 
 init();

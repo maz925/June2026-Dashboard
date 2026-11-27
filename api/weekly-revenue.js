@@ -1,5 +1,6 @@
 const { get, put } = require("@vercel/blob");
 const { downloadCoreReportCsv } = require("./core-report.js");
+const { authoriseMutation } = require("./access");
 
 const WEEKLY_REVENUE_VERSION = "weekly-revenue-backfill-v5-2026-08-18";
 const STORAGE_PATH = "weekly-revenue.json";
@@ -28,7 +29,7 @@ module.exports = async function handler(request, response) {
   }
 
   try {
-    assertCronAccess(request);
+    if (!(await authoriseMutation(request, response))) return;
 
     const url = new URL(request.url, `https://${request.headers.host || "localhost"}`);
     const windows = reportWindows(url.searchParams);

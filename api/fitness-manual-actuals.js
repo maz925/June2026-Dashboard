@@ -1,4 +1,5 @@
 const { get, put } = require("@vercel/blob");
+const { authoriseRead, authoriseMutation } = require("./access");
 
 const VERSION = "fitness-manual-actuals-v1-2026-10-23";
 const STORAGE_PATH = "fitness-manual-actuals.json";
@@ -21,11 +22,12 @@ module.exports = async function handler(request, response) {
   try {
     const existing = await loadStoredActuals();
     if (request.method === "GET") {
+      if (!(await authoriseRead(request, response))) return;
       response.status(200).json(existing);
       return;
     }
 
-    assertWriteAccess(request);
+    if (!(await authoriseMutation(request, response))) return;
     const body = await readJsonBody(request);
     const club = CLUBS.find((name) => name === body.club);
     const period = String(body.period || "").trim();

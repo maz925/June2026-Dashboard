@@ -1,5 +1,6 @@
 const { get, put } = require("@vercel/blob");
 const { downloadCoreReportCsv } = require("./core-report.js");
+const { authoriseRead, authoriseMutation } = require("./access");
 
 const POS_VERSION = "pos-dashboard-period-v2-2026-06-10";
 const STORAGE_PATH = "pos-metrics.json";
@@ -30,11 +31,12 @@ module.exports = async function handler(request, response) {
   try {
     const url = new URL(request.url, `https://${request.headers.host || "localhost"}`);
     if (url.searchParams.get("stored") === "1") {
+      if (!(await authoriseRead(request, response))) return;
       response.status(200).json(await loadStoredPosMetrics());
       return;
     }
 
-    assertCronAccess(request);
+    if (!(await authoriseMutation(request, response))) return;
 
     const window = reportWindow(url.searchParams);
     const existing = await loadStoredPosMetrics();

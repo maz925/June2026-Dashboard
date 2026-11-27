@@ -1,3 +1,4 @@
+const { authoriseRead } = require("./access");
 const CORE_BASE_URL = "https://core.hapana.com";
 const CORE_REPORT_VERSION = "core-report-report-timeout-v2-2026-06-05";
 const DEFAULT_LOGIN_URL = `${CORE_BASE_URL}/login`;
@@ -44,7 +45,7 @@ const REPORTS = {
 module.exports = async function handler(request, response) {
   response.setHeader("Access-Control-Allow-Origin", "*");
   response.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-  response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  response.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
 
   if (request.method === "OPTIONS") {
     response.status(204).end();
@@ -57,6 +58,7 @@ module.exports = async function handler(request, response) {
   }
 
   try {
+    if (!(await authoriseRead(request, response))) return;
     const url = new URL(request.url, `https://${request.headers.host || "localhost"}`);
     const locationName = url.searchParams.get("location") || "UFC GYM Bankstown";
     const dateFrom = url.searchParams.get("date_from");

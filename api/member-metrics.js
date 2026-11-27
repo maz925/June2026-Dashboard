@@ -5,6 +5,7 @@ const {
   downloadCoreReportCsv,
   requestWithCookies
 } = require("./core-report.js");
+const { authoriseRead, authoriseMutation } = require("./access");
 
 const DEFAULT_HAPANA_BASE_URL = "https://api.hapana.com/v2";
 const MEMBER_METRICS_VERSION = "member-metrics-mtd-v37-2026-10-23";
@@ -36,14 +37,15 @@ module.exports = async function handler(request, response) {
   }
 
   try {
-    assertCronAccess(request);
-
     const url = new URL(request.url, `https://${request.headers.host || "localhost"}`);
     if (url.searchParams.get("stored") === "1") {
+      if (!(await authoriseRead(request, response))) return;
       const stored = await loadExistingMemberMetrics();
       response.status(200).json(stored || emptyPayload());
       return;
     }
+
+    if (!(await authoriseMutation(request, response))) return;
 
     const window = monthWindow(url.searchParams);
     const debug = url.searchParams.get("debug");

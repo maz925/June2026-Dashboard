@@ -1,12 +1,13 @@
 <!doctype html>
-<html lang="en">
+<html lang="en-AU">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>UFC GYM Revenue Graphs</title>
-  <link rel="stylesheet" href="styles.css?v=2026-09-25-purple-graphs">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css?v=2026-11-27-review">
 </head>
-<body class="graphs-theme">
+<body class="graphs-theme dashboard-pending">
   <header class="topbar">
     <div>
       <p class="eyebrow">UFC GYM Team Dashboard</p>
@@ -27,6 +28,9 @@
   </header>
 
   <main>
+    <p id="pageStatus" class="page-status" role="status">Loading revenue graphs…</p>
+    <section id="attention" class="attention" hidden></section>
+    <p id="filterNote" class="filter-note" hidden></p>
     <section class="toolbar" aria-label="Graph filters">
       <label class="filter">
         <span>Clubs</span>
@@ -43,19 +47,19 @@
 
     <section class="metrics" aria-label="YTD totals">
       <article>
-        <span>YTD DD</span>
+        <span id="ytdDDLabel">Calendar YTD DD</span>
         <strong id="ytdDD"></strong>
       </article>
       <article>
-        <span>YTD POS</span>
+        <span id="ytdPOSLabel">Calendar YTD POS</span>
         <strong id="ytdPOS"></strong>
       </article>
       <article>
-        <span>YTD Revenue</span>
+        <span id="ytdRevenueLabel">Calendar YTD revenue</span>
         <strong id="ytdRevenue"></strong>
       </article>
       <article>
-        <span>YTD POS %</span>
+        <span id="ytdPOSPercentLabel" data-define="pos-percent">Calendar YTD POS %</span>
         <strong id="ytdPOSPercent"></strong>
       </article>
     </section>
@@ -89,21 +93,25 @@
 
     <section class="view active graph-section">
       <div class="section-heading">
-        <h2>YTD Year-on-Year Difference</h2>
-        <p id="comparisonPeriod">Current YTD compared with the matched prior-year reporting period.</p>
+        <h2>Matched-week year-on-year difference</h2>
+        <p id="comparisonPeriod">Matched weeks, not the calendar YTD total above.</p>
       </div>
-      <div class="table-wrap comparison-table-wrap">
+      <details class="detail-fold" open>
+        <summary>Year-on-year table</summary>
+      <div class="table-wrap comparison-table-wrap tall-table">
         <table class="comparison-table">
           <thead id="comparisonHead"></thead>
           <tbody id="comparisonBody"></tbody>
         </table>
       </div>
+      </details>
     </section>
   </main>
 
-  <script src="tracker-data.js?v=2026-08-18-reporting-cycle"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <script src="auth.js"></script>
-  <script src="graphs.js?v=2026-09-25-purple-graphs"></script>
+  <script src="auth.js?v=2026-11-27-review"></script>
+  <script src="dashboard-logic.js?v=2026-11-27-review"></script>
+  <script src="dashboard-ui.js?v=2026-11-27-review"></script>
+  <script src="graphs.js?v=2026-11-27-review"></script>
 </body>
 </html>

@@ -13,8 +13,18 @@
   const ready = initAuth();
   window.dashboardAuth = {
     ready,
-    logView
+    logView,
+    fetch: authFetch
   };
+
+  async function authFetch(url, options = {}) {
+    await ready;
+    const headers = new Headers(options.headers || {});
+    if (state.credential && !headers.has("Authorization")) {
+      headers.set("Authorization", `Bearer ${state.credential}`);
+    }
+    return fetch(url, { ...options, headers });
+  }
 
   async function initAuth() {
     state.config = await fetchAuthConfig();

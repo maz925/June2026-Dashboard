@@ -1,12 +1,13 @@
 <!doctype html>
-<html lang="en">
+<html lang="en-AU">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>UFC GYM Fitness Dashboard</title>
-  <link rel="stylesheet" href="styles.css?v=2026-10-23-angled-dates">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css?v=2026-11-27-review">
 </head>
-<body class="fitness-theme">
+<body class="fitness-theme dashboard-pending">
   <header class="topbar">
     <div>
       <p class="eyebrow">UFC GYM Team Dashboard</p>
@@ -27,6 +28,9 @@
   </header>
 
   <main>
+    <p id="pageStatus" class="page-status" role="status">Loading fitness data…</p>
+    <section id="attention" class="attention" hidden></section>
+    <p id="filterNote" class="filter-note" hidden></p>
     <section class="toolbar" aria-label="Dashboard filters">
       <label class="filter">
         <span>Clubs</span>
@@ -63,7 +67,7 @@
         <strong id="classCapacity"></strong>
       </article>
       <article>
-        <span>Utilisation Ratio</span>
+        <span data-define="utilisation">Utilisation Ratio</span>
         <strong id="participationRatio"></strong>
       </article>
       <article>
@@ -208,6 +212,8 @@
         <p>Weekly or monthly SLA completion score by club.</p>
       </div>
       <div class="summary-grid" id="slaComplianceGrid"></div>
+      <details class="edit-panel">
+        <summary>Edit SLA tracking</summary>
       <form id="slaTrackingForm" class="target-editor sla-editor">
         <div class="section-heading compact-heading">
           <h2>Update SLA Tracking</h2>
@@ -223,6 +229,7 @@
           <p class="form-status" id="slaTrackingStatus" role="status"></p>
         </div>
       </form>
+      </details>
     </section>
 
     <section class="view" id="targetsView">
@@ -230,6 +237,8 @@
         <h2>Fitness KPI Targets</h2>
         <p>Update the weekly target numbers used for each club's Fitness scorecard.</p>
       </div>
+      <details class="edit-panel">
+        <summary>Edit invoices and targets</summary>
       <form id="coachInvoicesForm" class="target-editor">
         <div class="section-heading compact-heading">
           <h3>Invoices Paid to Coaches</h3>
@@ -263,6 +272,7 @@
           <p class="form-status" id="fitnessTargetsStatus" role="status"></p>
         </div>
       </form>
+      </details>
     </section>
 
     <section class="view" id="actionsView">
@@ -275,7 +285,9 @@
   </main>
 
   <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <script src="auth.js"></script>
-  <script src="fitness.js?v=2026-10-23-inline-coach-invoices"></script>
+  <script src="auth.js?v=2026-11-27-review"></script>
+  <script src="dashboard-logic.js?v=2026-11-27-review"></script>
+  <script src="dashboard-ui.js?v=2026-11-27-review"></script>
+  <script src="fitness.js?v=2026-11-27-review"></script>
 </body>
 </html>
